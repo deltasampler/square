@@ -4,16 +4,12 @@ import {gen_level1} from "./levels.ts";
 import {gl_init} from "@engine/gl.ts";
 import {cam2_compute_proj, cam2_compute_view, cam2_new} from "@cl/cam2.ts";
 import {grid_new, rend_grid_init, rend_grid_render} from "./rend_grid.ts";
-import {vec2, vec2_add, vec2_add2, vec2_clone, vec2_copy, vec2_dist, vec2_len, vec2_lerp, vec2_mul_s, vec2_mul_s2, vec2_refl, vec2_set, vec2_sub, vec2_sub2, vec2_unit, vec2_unit2, vec2_zero} from "@cl/vec2.ts";
+import {vec2, vec2_add2, vec2_copy, vec2_dist, vec2_lerp, vec2_mul_s, vec2_mul_s2, vec2_refl, vec2_set, vec2_sub, vec2_unit2} from "@cl/vec2.ts";
 import {rgb} from "@cl/vec3.ts";
 import {box_rend_build, box_rend_new, box_rend_update, rend_boxes_build, rend_boxes_init, rend_boxes_render} from "./rend_boxes.ts";
 import {rend_player_init, rend_player_render} from "./rend_player.ts";
-import {abs, clamp } from "@cl/math.ts";
+import {clamp } from "@cl/math.ts";
 import {aabb2, aabb2_is_overlapping_sideways, aabb2_overlap_aabb} from "@cl/aabb2.ts";
-import {ball_rend_build, ball_rend_new, ball_rend_t, ball_rend_update, rend_balls_build, rend_balls_init, rend_balls_render} from "./rend_balls.ts";
-import { ball_new, ball_t, box_t } from "./world.ts";
-import { vec2_t } from "@cl/type.ts";
-import { rgba } from "@cl/vec4.ts";
 
 const root = gui_window(null);
 const canvas = gui_canvas(root);
@@ -33,9 +29,6 @@ const grid = grid_new(vec2(), vec2(1024.0), vec2(1.0), 0.01, rgb(255.0, 255.0, 2
 const box_rend = box_rend_new();
 box_rend_build(box_rend, level);
 
-const ball_rend = ball_rend_new();
-ball_rend_build(ball_rend, 100);
-
 io_init();
 
 const gravity = -0.5;
@@ -53,64 +46,6 @@ io_kb_key_down(function(event: kb_event_t): void {
         vec2_set(player.position, 0.0, 5.0);
     }
 });
-
-const shooters: box_t[] = [];
-
-for (const box of boxes) {
-    if (box.shooter) {
-        shooters.push(box);
-    }
-}
-
-setInterval(function(): void {
-    for (const shooter of shooters) {
-        const gun = shooter.shooter;
-
-        if (gun) {
-            if (level.balls.length < 1) {
-                const ball = ball_new(shooter.position, gun.ball_size, vec2_mul_s(gun.dir, gun.force));
-                level.balls.push(ball);
-            }
-        }
-    }
-}, 1000);
-
-function closest_point_on_line(start: vec2_t, end: vec2_t, point: vec2_t): vec2_t {
-    const bax = end[0] - start[0];
-    const bay = end[1] - start[1];
-    const pax = point[0] - start[0];
-    const pay = point[1] - start[1];
-    const t = (bax * pax + bay * pay) / (bax * bax + bay * bay);
-    const tc = clamp(t, 0.0, 1.0);
-
-    return vec2(start[0] + bax * tc, start[1] + bay * tc);
-}
-
-function point_closest(position: vec2_t, size: vec2_t, point: vec2_t): vec2_t {
-    const x = position[0], y = position[1];
-    const hsx = size[0] / 2.0, hsy = size[1] / 2.0;
-    const minx = x - hsx, miny = y - hsy;
-    const maxx = x + hsx, maxy = y + hsy;
-    const px = point[0], py = point[1];
-
-    if (px >= minx && px <= maxx && py >= miny && py <= maxy) {
-        const cx = abs(minx - point[0]) < abs(maxx - point[0]) ? minx : maxx;
-        const cy = abs(miny - point[1]) < abs(maxy - point[1]) ? miny : maxy;
-        const a = closest_point_on_line(vec2(minx, cy), vec2(maxx, cy), point)
-        const b = closest_point_on_line(vec2(cx, miny), vec2(cx, maxy), point);
-
-        if (vec2_dist(a, point) < vec2_dist(b, point)) {
-            return a;
-        }
-
-        return b;
-    }
-
-    const a = closest_point_on_line(vec2(minx, maxy), vec2(maxx, maxy), point)
-    const b = closest_point_on_line(vec2(maxx, miny), vec2(maxx, maxy), point);
-
-    return vec2(a[0], b[1]);
-}
 
 function update(): void {
     const body = player.body;
@@ -197,32 +132,6 @@ function update(): void {
         }
     }
 
-    // balls
-    for (const ball of level.balls) {
-        vec2_add2(ball.position, ball.body.velocity);
-
-        for (const b of level.boxes) {
-            if (b.shooter) {
-                continue;
-            }
-
-            const overlap = point_closest(b.position, b.size, ball.position,);
-
-            if (overlap) {
-                const d = vec2_sub(ball.position, overlap);
-                const n = vec2_unit(d);
-                const l = vec2_len(d);
-
-                if (l <= ball.diameter / 2.0) {
-                    vec2_add2(ball.position, vec2_mul_s(n, l - ball.diameter / 2.0));
-                    const e = Math.min(b.body.restitution, ball.body.restitution);
-                    ball.body.velocity = vec2_mul_s(vec2_refl(ball.body.velocity, n), e);
-                }
-            }
-        }
-
-    }
-
     if (player.contact) {
         body.velocity[0] *= Math.min(player.body.friction, player.contact.body.friction);
         const t = player.position[1] - player.size[1] / 2;
@@ -249,9 +158,6 @@ rend_grid_init();
 rend_boxes_init();
 rend_boxes_build(box_rend);
 
-rend_balls_init();
-rend_balls_build(ball_rend);
-
 rend_player_init();
 
 gl.enable(gl.BLEND)
@@ -259,7 +165,6 @@ gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
 function render(): void {
     box_rend_update(box_rend, level);
-    ball_rend_update(ball_rend, level);
 
     camera.position = vec2_lerp(camera.position, player.position, 0.05);
     cam2_compute_proj(camera, canvas_el.width, canvas_el.height);
@@ -271,11 +176,10 @@ function render(): void {
 
     rend_grid_render(grid, camera);
     rend_boxes_render(box_rend, camera);
-    rend_balls_render(ball_rend, camera);
     rend_player_render(level.player, camera);
 }
 
-function main_loop(): void {
+function loop(): void {
     time = performance.now();
     delta_time = (time - last_time) / 1000.0;
     last_time = time;
@@ -283,7 +187,7 @@ function main_loop(): void {
     update();
     render();
 
-    requestAnimationFrame(main_loop);
+    requestAnimationFrame(loop);
 }
 
-main_loop();
+loop();
