@@ -1,5 +1,5 @@
 import {vec2_t, vec4_t} from "@cl/type.ts";
-import {vec2, vec2_lerp} from "@cl/vec2.ts";
+import {vec2, vec2_lerp, vec2_lerp1} from "@cl/vec2.ts";
 import {rgba} from "@cl/vec4.ts";
 
 export class rigid_body_t {
@@ -75,7 +75,7 @@ export function box_ground(position: vec2_t, size: vec2_t): box_t {
 
 export function box_mover(size: vec2_t, start: vec2_t, end: vec2_t, factor: number, speed: number): box_t {
     const box = new box_t();
-    box.position = vec2_lerp(start, end, factor);
+    box.position = vec2_lerp1(start, end, factor);
     box.size = size;
     box.body = rigid_body_new();
     box.body.is_dynamic = true;

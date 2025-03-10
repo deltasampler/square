@@ -4,7 +4,7 @@ import {gen_level1} from "./levels.ts";
 import {gl_init} from "@engine/gl.ts";
 import {cam2_compute_proj, cam2_compute_view, cam2_new} from "@cl/cam2.ts";
 import {grid_new, rend_grid_init, rend_grid_render} from "./rend_grid.ts";
-import {vec2, vec2_add2, vec2_copy, vec2_dist, vec2_lerp, vec2_mul_s, vec2_mul_s2, vec2_refl, vec2_set, vec2_sub, vec2_unit2} from "@cl/vec2.ts";
+import {vec2, vec2_add2, vec2_copy, vec2_dist, vec2_lerp, vec2_lerp1, vec2_muls, vec2_muls1, vec2_muls2, vec2_refl, vec2_refl1, vec2_set, vec2_sub, vec2_sub1, vec2_unit2} from "@cl/vec2.ts";
 import {rgb} from "@cl/vec3.ts";
 import {box_rend_build, box_rend_new, box_rend_update, rend_boxes_build, rend_boxes_init, rend_boxes_render} from "./rend_boxes.ts";
 import {rend_player_init, rend_player_render} from "./rend_player.ts";
@@ -87,8 +87,8 @@ function update(): void {
                     }
                 }
 
-                const direction = vec2_unit2(vec2_sub(animation.end, animation.start));
-                const velocity = vec2_mul_s2(direction, animation.speed * animation.dir);
+                const direction = vec2_unit2(vec2_sub1(animation.end, animation.start));
+                const velocity = vec2_muls2(direction, animation.speed * animation.dir);
                 vec2_copy(box.body.velocity, velocity);
                 vec2_add2(box.position, box.body.velocity);
             }
@@ -128,7 +128,7 @@ function update(): void {
 
             const e = Math.min(body.restitution, body.restitution);
 
-            body.velocity = vec2_mul_s(vec2_refl(body.velocity, normal), e);
+            body.velocity = vec2_muls1(vec2_refl1(body.velocity, normal), e);
         }
     }
 
@@ -166,7 +166,7 @@ gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 function render(): void {
     box_rend_update(box_rend, level);
 
-    camera.position = vec2_lerp(camera.position, player.position, 0.05);
+    camera.position = vec2_lerp1(camera.position, player.position, 0.05);
     cam2_compute_proj(camera, canvas_el.width, canvas_el.height);
     cam2_compute_view(camera);
 
