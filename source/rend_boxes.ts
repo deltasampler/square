@@ -50,11 +50,12 @@ export function box_rend_update(box_rend: box_rend_t, level: level_t): void {
     for (let i = 0; i < boxes.length; ++i) {
         const box = boxes[i];
         const instance = box_rend.instances[i];
+        const body = box.body;
 
-        instance[0] = box.position[0];
-        instance[1] = box.position[1];
-        instance[2] = box.size[0];
-        instance[3] = box.size[1];
+        instance[0] = body.position[0];
+        instance[1] = body.position[1];
+        instance[2] = body.size[0];
+        instance[3] = body.size[1];
         instance[4] = box.color[0];
         instance[5] = box.color[1];
         instance[6] = box.color[2];

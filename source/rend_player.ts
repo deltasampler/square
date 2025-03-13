@@ -62,7 +62,7 @@ export function rend_player_render(player: player_t, camera: cam2_t) {
     gl.useProgram(program);
     gl.uniformMatrix4fv(u_projection, false, camera.projection);
     gl.uniformMatrix4fv(u_view, false, camera.view);
-    gl.uniform2fv(u_position, player.position);
-    gl.uniform2fv(u_size, player.size);
+    gl.uniform2fv(u_position, player.body.position);
+    gl.uniform2fv(u_size, player.body.size);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }

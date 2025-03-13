@@ -1,6 +1,6 @@
 import {gl, gl_link_program} from "@engine/gl.ts";
 import {cam2_t} from "@cl/cam2.ts";
-import {vec2_t, vec3_t} from "@cl/type";
+import {vec2_t, vec3_t} from "@cl/type.ts";
 
 let program: WebGLProgram;
 let u_projection: WebGLUniformLocation;
