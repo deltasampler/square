@@ -1,17 +1,17 @@
 import {gui_window, gui_canvas, gui_render} from "@gui/gui.ts";
 import {io_init, io_kb_key_down, io_key_down, kb_event_t} from "@engine/io.ts";
-import {gen_level1, gen_level2} from "./levels.ts";
+import {level_1} from "./levels.ts";
 import {gl_init} from "@engine/gl.ts";
 import {cam2_compute_proj, cam2_compute_view, cam2_new} from "@cl/cam2.ts";
 import {grid_new, rend_grid_init, rend_grid_render} from "./rend_grid.ts";
-import {vec2, vec2_add2, vec2_addmuls2, vec2_clamp2, vec2_dir1, vec2_dot, vec2_lerp1, vec2_muls1, vec2_muls2, vec2_set, vec2_sub1} from "@cl/vec2.ts";
+import {vec2, vec2_add2, vec2_addmuls2, vec2_clamp2, vec2_copy, vec2_dir1, vec2_dot, vec2_lerp1, vec2_muls1, vec2_muls2, vec2_set, vec2_sub1} from "@cl/vec2.ts";
 import {rgb} from "@cl/vec3.ts";
 import {box_rend_build, box_rend_new, box_rend_update, rend_boxes_build, rend_boxes_init, rend_boxes_render} from "./rend_boxes.ts";
 import {rend_player_init, rend_player_render} from "./rend_player.ts";
 import {min} from "@cl/math.ts";
 import {mtv_aabb2_aabb2, overlap_aabb2_aabb2_x} from "@cl/collision2.ts";
-import {body_integrate, body_t} from "./phys.ts";
-import {box_t} from "./world.ts";
+import {body_integrate} from "./phys.ts";
+import {box_t, load_level, player_new} from "./world.ts";
 
 const root = gui_window(null);
 const canvas = gui_canvas(root);
@@ -21,11 +21,10 @@ gui_render(root, document.body);
 const canvas_el = canvas.canvas_el;
 const gl = gl_init(canvas_el);
 
+const level = load_level(level_1);
+const player = player_new(vec2(), vec2(1.0), 10.0);
 const clear_color = rgb(129.0, 193.0, 204.0);
-const level = gen_level2();
-const boxes = level.boxes;
 const camera = cam2_new();
-const player = level.player;
 const grid = grid_new(vec2(), vec2(1024.0), vec2(1.0), 0.01, rgb(255.0, 255.0, 255.0));
 
 const box_rend = box_rend_new();
@@ -33,40 +32,32 @@ box_rend_build(box_rend, level);
 
 io_init();
 
-
-
 io_kb_key_down(function(event: kb_event_t): void {
     if (event.code === "KeyR") {
-        vec2_set(player_body.position, 0.0, 5.0);
+        vec2_copy(player_body.position, level.spawn_point);
     }
 });
 
-
 // physics
-const bodies: body_t[] = [];
-const static_bodies: body_t[] = [];
-const dynamic_bodies: body_t[] = [];
+const boxes = level.boxes;
+const static_boxes: box_t[] = [];
+const dynamic_boxes: box_t[] = [];
 const kinematic_boxes: box_t[] = [];
 const player_body = player.body;
-console.log(player_body);
 
 for (const box of boxes) {
     const body = box.body;
 
     if (body.is_dynamic) {
-        dynamic_bodies.push(body);
+        dynamic_boxes.push(box);
     } else {
-        static_bodies.push(body)
+        static_boxes.push(box)
     }
 
     if (box.animation) {
         kinematic_boxes.push(box);
     }
-
-    bodies.push(body);
 }
-
-dynamic_bodies.push(player_body);
 
 let delta_time = 0;
 let time = 0;
@@ -88,11 +79,11 @@ function update(): void {
     // apply jump force to player
     if (io_key_down("Space") && player_body.contact) {
         player_body.vel[1] = 0.0;
-        vec2_add2(player_body.force, vec2(0.0, 150000.0));
+        vec2_add2(player_body.force, vec2(0.0, 50000.0));
         player_body.contact = null;
     }
 
-    // aply force to kinematic bodies
+    // apply force to kinematic bodies
     for (const box of kinematic_boxes) {
         const body = box.body;
         const animation = box.animation!;
@@ -116,7 +107,8 @@ function update(): void {
     }
 
     // player motion
-    for (const body of bodies) {
+    for (const box of boxes) {
+        const body = box.body;
         const result = mtv_aabb2_aabb2(player_body.position, player_body.size, body.position, body.size);
 
         if (!result) {
@@ -133,7 +125,7 @@ function update(): void {
             const normal_velocity = vec2_dot(relative_velocity, result.dir);
 
             if (normal_velocity < 0) {
-                const restitution = min(player_body.restitution, body.restitution);
+                const restitution = 0.1; // min(player_body.restitution, body.restitution);
                 const inv_mass1 = player_body.mass_inv;
                 const inv_mass2 = body.mass_inv;
                 const impulse_magnitude = -(1 + restitution) * normal_velocity / (inv_mass1 + inv_mass2);
@@ -157,8 +149,10 @@ function update(): void {
     }
 
     // itegration
-    for (const body of dynamic_bodies) {
-        body_integrate(body, delta_time);
+    body_integrate(player_body, delta_time);
+
+    for (const box of dynamic_boxes) {
+        body_integrate(box.body, delta_time);
     }
 }
 
@@ -185,7 +179,7 @@ function render(): void {
 
     rend_grid_render(grid, camera);
     rend_boxes_render(box_rend, camera);
-    rend_player_render(level.player, camera);
+    rend_player_render(player, camera);
 }
 
 function loop(): void {
