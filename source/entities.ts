@@ -35,21 +35,6 @@ export function body_new(): body_t {
     return body;
 }
 
-export class trigger_t {
-    on_touch: (player: player_t) => void;
-    on_enter: (player: player_t) => void;
-    on_leave: (player: player_t) => void;
-};
-
-export function trigger_new() {
-    const trigger = new trigger_t();
-    trigger.on_touch = function() {}
-    trigger.on_enter = function() {}
-    trigger.on_leave = function() {}
-
-    return trigger;
-}
-
 export class animation_t {
     start: vec2_t;
     end: vec2_t;
@@ -122,7 +107,6 @@ export class box_t {
     is_death: boolean;
     is_platform: boolean;
     type: BOX_TYPE;
-    trigger: trigger_t|null;
     animation: animation_t|null;
     portal: portal_t|null;
     effect: effect_t|null;

@@ -5,11 +5,11 @@ import {gl_init} from "@engine/gl.ts";
 import {cam2_compute_proj, cam2_compute_view, cam2_new} from "@cl/cam2.ts";
 import {grid_new, rend_grid_init, rend_grid_render} from "./rend_grid.ts";
 import {vec2, vec2_add2, vec2_addmuls2, vec2_clamp2, vec2_clone, vec2_copy, vec2_dir1, vec2_dot, vec2_lerp1, vec2_muls1, vec2_muls2, vec2_sub1} from "@cl/vec2.ts";
-import {rgb, vec3} from "@cl/vec3.ts";
+import {rgb} from "@cl/vec3.ts";
 import {box_rend_build, box_rend_new, box_rend_update, rend_boxes_build, rend_boxes_init, rend_boxes_render} from "./rend_boxes.ts";
 import {rend_player_init, rend_player_render} from "./rend_player.ts";
 import {min} from "@cl/math.ts";
-import {mtv_aabb2_aabb2, overlap_aabb2_aabb2_x} from "@cl/collision2.ts";
+import {mtv_aabb2_aabb2, overlap_aabb2_aabb2, overlap_aabb2_aabb2_x} from "@cl/collision2.ts";
 import {body_integrate} from "./phys.ts";
 import {load_level} from "./world.ts";
 import {background_new, rend_background_init, rend_background_render} from "./rend_background.ts";
@@ -17,6 +17,23 @@ import { box_t, BOX_TYPE, player_new } from "./entities.ts";
 
 const root = gui_window(null);
 const canvas = gui_canvas(root);
+
+const timer_el = document.createElement("div");
+timer_el.className = "timer";
+timer_el.style.width = "100vw";
+timer_el.style.height = "100vh";
+timer_el.style.position = "absolute";
+timer_el.style.left = "0";
+timer_el.style.top = "0";
+timer_el.style.zIndex = "1";
+timer_el.style.fontSize = "48px";
+timer_el.style.color = "#ffffff";
+timer_el.style.lineHeight = "1.5";
+timer_el.style.textAlign = "center";
+timer_el.style.fontFamily = "monospace";
+timer_el.style.pointerEvents = "none";
+timer_el.innerHTML = "0:00.000";
+document.body.append(timer_el);
 
 gui_render(root, document.body);
 
@@ -67,6 +84,20 @@ let time = 0;
 let last_time = 0;
 
 let is_in_start_zone = false;
+let timer = 0.0;
+let is_timer_running = false;
+
+function format_time(s: number): string {
+    let minutes = Math.floor(s / 60);
+    let secs = Math.floor(s % 60);
+    let milliseconds = Math.round((s % 1) * 1000);
+
+    return (
+        String(minutes).padStart(2, '0') + ":" +
+        String(secs).padStart(2, '0') + "." +
+        String(milliseconds).padStart(3, '0')
+    );
+}
 
 function update(): void {
     // apply gravity force to player
@@ -119,10 +150,14 @@ function update(): void {
             continue;
         }
 
-        if (box.type === BOX_TYPE.START_ZONE) {
-            if (!is_in_start_zone) {
-                is_in_start_zone = true;
-            }
+        if (!is_in_start_zone && box.type === BOX_TYPE.START_ZONE) {
+            is_in_start_zone = true;
+            is_timer_running = false;
+            timer = 0.0;
+        }
+
+        if (box.type === BOX_TYPE.END_ZONE) {
+            is_timer_running = false;
         }
 
         if (body.can_collide) {
@@ -153,6 +188,13 @@ function update(): void {
 
             // resolve interpenetration
             vec2_addmuls2(player_body.position, result.dir, result.depth);
+        }
+    }
+
+    if (is_in_start_zone) {
+        if (!overlap_aabb2_aabb2(player_body.position, player_body.size, level.start_zone.body.position, level.start_zone.body.size)) {
+            is_in_start_zone = false;
+            is_timer_running = true;
         }
     }
 
@@ -200,6 +242,12 @@ function loop(): void {
     time = performance.now();
     delta_time = min((time - last_time) / 1000.0, 0.1);
     last_time = time;
+
+    if (is_timer_running) {
+        timer += delta_time;
+    }
+
+    timer_el.innerHTML = format_time(timer);
 
     update();
     render();
