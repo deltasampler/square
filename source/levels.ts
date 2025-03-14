@@ -7,7 +7,48 @@ export const level_1 = `
             {
                 "type": "ground",
                 "position": [0, -4],
-                "size": [32, 8]
+                "size": [512, 8]
+            },
+            {
+                "type": "mover",
+                "size": [4, 1],
+                "start": [-8, 4],
+                "end": [14, 12],
+                "factor": 1.0,
+                "speed": 512,
+                "dir": -1
+            },
+            {
+                "type": "mover",
+                "size": [4, 1],
+                "start": [0, 12],
+                "end": [-14, 24],
+                "factor": 1.0,
+                "speed": 512,
+                "dir": 1
+            },
+            {
+                "type": "mover",
+                "size": [4, 1],
+                "start": [-8, 32],
+                "end": [14, 48],
+                "factor": 1.0,
+                "speed": 512,
+                "dir": -1
+            },
+            {
+                "type": "mover",
+                "size": [4, 1],
+                "start": [-8, 48],
+                "end": [14, 48],
+                "factor": 1.0,
+                "speed": 512,
+                "dir": -1
+            },
+            {
+                "type": "ground",
+                "position": [-16, 48],
+                "size": [16, 4]
             }
         ]
     }

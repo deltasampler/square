@@ -12,6 +12,7 @@ import {min} from "@cl/math.ts";
 import {mtv_aabb2_aabb2, overlap_aabb2_aabb2_x} from "@cl/collision2.ts";
 import {body_integrate} from "./phys.ts";
 import {box_t, load_level, player_new} from "./world.ts";
+import {rend_background_init, rend_background_render} from "./rend_background.ts";
 
 const root = gui_window(null);
 const canvas = gui_canvas(root);
@@ -78,9 +79,8 @@ function update(): void {
 
     // apply jump force to player
     if (io_key_down("Space") && player_body.contact) {
-        player_body.vel[1] = 0.0;
-        vec2_add2(player_body.force, vec2(0.0, 50000.0));
-        player_body.contact = null;
+        player_body.vel[1] = 80.0;
+        player_body.contact = null ;
     }
 
     // apply force to kinematic bodies
@@ -163,6 +163,8 @@ rend_boxes_build(box_rend);
 
 rend_player_init();
 
+rend_background_init();
+
 gl.enable(gl.BLEND)
 gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
@@ -177,6 +179,7 @@ function render(): void {
     gl.clearColor(clear_color[0], clear_color[1], clear_color[2], 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
+    rend_background_render(camera, time);
     rend_grid_render(grid, camera);
     rend_boxes_render(box_rend, camera);
     rend_player_render(player, camera);

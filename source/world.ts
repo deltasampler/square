@@ -1,7 +1,8 @@
-import {vec2_t, vec4_t} from "@cl/type.ts";
-import {vec2, vec2_abs, vec2_add, vec2_add1, vec2_div2, vec2_divs2, vec2_lerp1, vec2_sub1} from "@cl/vec2.ts";
-import {rgba} from "@cl/vec4.ts";
+import {vec2_t, vec3_t} from "@cl/type.ts";
+import {vec2, vec2_abs, vec2_add1, vec2_divs2, vec2_lerp1, vec2_sub1} from "@cl/vec2.ts";
 import {body_new, body_t} from "./phys.ts";
+import { vec3, vec3_pack256 } from "@cl/vec3.ts";
+
 export class animation_t {
     start: vec2_t;
     end: vec2_t;
@@ -24,8 +25,28 @@ export function animation_new(start: vec2_t, end: vec2_t, factor: number, speed:
 export class box_t {
     body: body_t;
     animation: animation_t|null;
-    color: vec4_t;
+    inner_color: vec3_t;
+    outer_color: vec3_t;
+    opacity: number;
+    border: number;
+    option: number;
 };
+
+export enum TYPE_BIT {
+    BORDER,
+    CHECKS,
+    BRICKS,
+    SPIKES
+};
+
+export function box_new() {
+    const box = new box_t();
+    box.opacity = 1;
+    box.option = 0;
+    box.border = 0.2;
+
+    return box;
+}
 
 export function box_ground(position: vec2_t, size: vec2_t): box_t {
     const body = body_new();
@@ -33,9 +54,12 @@ export function box_ground(position: vec2_t, size: vec2_t): box_t {
     body.size = size;
     body.restitution = 0.5;
 
-    const box = new box_t();
+    const box = box_new();
     box.body = body;
-    box.color = rgba(176, 176, 176, 255);
+    box.inner_color = vec3(212, 212, 212);
+    box.outer_color = vec3(138, 138, 138);
+    box.border = 1.0;
+    box.option = vec3_pack256(1, 5, 0);
 
     return box;
 }
@@ -47,9 +71,13 @@ export function box_start_zone(min: vec2_t, max: vec2_t): box_t {
     body.restitution = 0.5;
     body.can_collide = false;
 
-    const box = new box_t();
+    const box = box_new();
     box.body = body;
-    box.color = rgba(200, 255, 133, 128);
+    box.inner_color = vec3(0, 0, 0);
+    box.outer_color = vec3(178, 255, 161);
+    box.opacity = 0.1;
+    box.option = vec3_pack256(1, 5, 0);
+    box.border = 0.2;
 
     return box;
 }
@@ -61,9 +89,11 @@ export function box_end_zone(min: vec2_t, max: vec2_t): box_t {
     body.restitution = 0.5;
     body.can_collide = false;
 
-    const box = new box_t();
+    const box = box_new();
     box.body = body;
-    box.color = rgba(255, 130, 20, 128);
+    box.inner_color = vec3(255, 131, 82);
+    box.outer_color = vec3(255, 131, 82);
+    box.opacity = 0.0;
 
     return box;
 }
@@ -74,9 +104,10 @@ export function box_boost_up(position: vec2_t, size: vec2_t): box_t {
     body.size = size;
     body.restitution = 0.5;
 
-    const box = new box_t();
+    const box = box_new();
     box.body = body;
-    box.color = rgba(176.0, 176.0, 176.0, 255.0);
+    box.inner_color = vec3(255, 71, 71);
+    box.outer_color = vec3(255, 71, 71);
 
     return box;
 }
@@ -89,11 +120,14 @@ export function box_mover(size: vec2_t, start: vec2_t, end: vec2_t, factor: numb
     body.restitution = 0.3;
     body.is_dynamic = true;
 
-    const box = new box_t();
+    const box = box_new();
     box.body = body;
+    box.inner_color = vec3(204, 204, 204);
+    box.outer_color = vec3(0, 0, 0);
+    box.border = 0.1;
+    box.option = vec3_pack256(0, 5, 0);
 
     box.animation = animation_new(start, end, factor, speed, dir);
-    box.color = rgba(176.0, 176.0, 176.0, 255.0);
 
     return box;
 }
@@ -158,6 +192,15 @@ export function load_level(json: string): level_t {
             const size = extract_vec2(entity.size);
 
             level.boxes.push(box_ground(position, size))
+        } else if (entity.type === "mover") {
+            const size = extract_vec2(entity.size);
+            const start = extract_vec2(entity.start);
+            const end = extract_vec2(entity.end);
+            const factor = entity.factor;
+            const speed = entity.speed;
+            const dir = entity.dir;
+
+            level.boxes.push(box_mover(size, start, end, factor, speed, dir));
         }
     }
 
