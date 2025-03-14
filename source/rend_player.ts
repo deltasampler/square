@@ -1,6 +1,6 @@
 import {gl, gl_link_program} from "@engine/gl.ts";
-import {player_t} from "./world.ts";
 import {cam2_t} from "@cl/cam2.ts";
+import {player_t} from "./entities.ts";
 
 let program: WebGLProgram;
 let u_projection: WebGLUniformLocation;

@@ -4,15 +4,16 @@ import {level_1} from "./levels.ts";
 import {gl_init} from "@engine/gl.ts";
 import {cam2_compute_proj, cam2_compute_view, cam2_new} from "@cl/cam2.ts";
 import {grid_new, rend_grid_init, rend_grid_render} from "./rend_grid.ts";
-import {vec2, vec2_add2, vec2_addmuls2, vec2_clamp2, vec2_copy, vec2_dir1, vec2_dot, vec2_lerp1, vec2_muls1, vec2_muls2, vec2_set, vec2_sub1} from "@cl/vec2.ts";
-import {rgb} from "@cl/vec3.ts";
+import {vec2, vec2_add2, vec2_addmuls2, vec2_clamp2, vec2_clone, vec2_copy, vec2_dir1, vec2_dot, vec2_lerp1, vec2_muls1, vec2_muls2, vec2_sub1} from "@cl/vec2.ts";
+import {rgb, vec3} from "@cl/vec3.ts";
 import {box_rend_build, box_rend_new, box_rend_update, rend_boxes_build, rend_boxes_init, rend_boxes_render} from "./rend_boxes.ts";
 import {rend_player_init, rend_player_render} from "./rend_player.ts";
 import {min} from "@cl/math.ts";
 import {mtv_aabb2_aabb2, overlap_aabb2_aabb2_x} from "@cl/collision2.ts";
 import {body_integrate} from "./phys.ts";
-import {box_t, load_level, player_new} from "./world.ts";
-import {rend_background_init, rend_background_render} from "./rend_background.ts";
+import {load_level} from "./world.ts";
+import {background_new, rend_background_init, rend_background_render} from "./rend_background.ts";
+import { box_t, BOX_TYPE, player_new } from "./entities.ts";
 
 const root = gui_window(null);
 const canvas = gui_canvas(root);
@@ -23,10 +24,11 @@ const canvas_el = canvas.canvas_el;
 const gl = gl_init(canvas_el);
 
 const level = load_level(level_1);
-const player = player_new(vec2(), vec2(1.0), 10.0);
-const clear_color = rgb(129.0, 193.0, 204.0);
+const player = player_new(vec2_clone(level.spawn_point), vec2(1.0), 10.0);
+const clear_color = rgb(129, 193, 204);
 const camera = cam2_new();
-const grid = grid_new(vec2(), vec2(1024.0), vec2(1.0), 0.01, rgb(255.0, 255.0, 255.0));
+const grid = grid_new(vec2(), vec2(1024.0), vec2(1.0), 0.01, rgb(255, 255, 250));
+const background = background_new(rgb(30, 116, 214), rgb(124, 198, 228));
 
 const box_rend = box_rend_new();
 box_rend_build(box_rend, level);
@@ -64,6 +66,8 @@ let delta_time = 0;
 let time = 0;
 let last_time = 0;
 
+let is_in_start_zone = false;
+
 function update(): void {
     // apply gravity force to player
     vec2_add2(player_body.force, vec2(0.0, -2000.0));
@@ -80,7 +84,7 @@ function update(): void {
     // apply jump force to player
     if (io_key_down("Space") && player_body.contact) {
         player_body.vel[1] = 80.0;
-        player_body.contact = null ;
+        player_body.contact = null;
     }
 
     // apply force to kinematic bodies
@@ -99,7 +103,7 @@ function update(): void {
             animation.dir = 1.0;
         }
 
-        vec2_add2(body.force, vec2_muls2(move_direction, animation.speed * animation.dir));
+        vec2_add2(body.force, vec2_muls2(move_direction, animation.force * animation.dir));
     }
 
     if (player_body.contact) {
@@ -115,7 +119,17 @@ function update(): void {
             continue;
         }
 
+        if (box.type === BOX_TYPE.START_ZONE) {
+            if (!is_in_start_zone) {
+                is_in_start_zone = true;
+            }
+        }
+
         if (body.can_collide) {
+            if (box.is_death) {
+                vec2_copy(player_body.position, level.start_zone.body.position);
+            }
+
             if (result.dir[1] > 0.0) {
                 player_body.contact = body;
             }
@@ -156,14 +170,11 @@ function update(): void {
     }
 }
 
+rend_background_init();
 rend_grid_init();
-
 rend_boxes_init();
 rend_boxes_build(box_rend);
-
 rend_player_init();
-
-rend_background_init();
 
 gl.enable(gl.BLEND)
 gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -179,7 +190,7 @@ function render(): void {
     gl.clearColor(clear_color[0], clear_color[1], clear_color[2], 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    rend_background_render(camera, time);
+    rend_background_render(background, camera, time);
     rend_grid_render(grid, camera);
     rend_boxes_render(box_rend, camera);
     rend_player_render(player, camera);
