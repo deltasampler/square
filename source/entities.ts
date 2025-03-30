@@ -1,6 +1,6 @@
-import {vec2_t, vec3_t} from "@cl/type.ts";
+import {vec2_t, vec3_t, vec4_t} from "@cl/type.ts";
 import {vec2} from "@cl/vec2.ts";
-import { vec3_pack256 } from "@cl/vec3";
+import {vec3} from "@cl/vec3.ts";
 
 export class body_t {
     position: vec2_t;
@@ -86,10 +86,6 @@ export enum OPT_TEXTURE {
     BRICK
 };
 
-export function box_option_pack(mask: OPT_MASK, border: OPT_BORDER, texture: OPT_TEXTURE): number {
-    return vec3_pack256(mask, border, texture);
-}
-
 export enum BOX_TYPE {
     DEFAULT,
     START_ZONE,
@@ -98,12 +94,10 @@ export enum BOX_TYPE {
 
 export class box_t {
     body: body_t;
-    inner_color: vec3_t;
-    outer_color: vec3_t;
-    opacity: number;
-    option: number;
-    border_width: number;
-    cell_size: vec2_t;
+    inner_color: vec4_t;
+    outer_color: vec4_t;
+    option: vec4_t;
+    params: vec3_t;
     is_death: boolean;
     is_platform: boolean;
     type: BOX_TYPE;
@@ -114,18 +108,15 @@ export class box_t {
 
 export function box_new() {
     const box = new box_t();
-    box.opacity = 1;
-    box.option = 0;
-    box.border_width = 0.2;
-    box.cell_size = vec2();
+    box.params = vec3(0.2, 0, 0);
 
     return box;
 }
 
 export class player_t {
     body: body_t;
-    inner_color: vec3_t;
-    outer_color: vec3_t;
+    inner_color: vec4_t;
+    outer_color: vec4_t;
     option: number;
 };
 
@@ -141,10 +132,6 @@ export function player_new(position: vec2_t, size: vec2_t, mass: number): player
 
     return player;
 }
-
-export class mesh_t {
-    position: vec2_t;
-};
 
 export class level_t {
     spawn_point: vec2_t;

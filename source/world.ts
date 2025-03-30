@@ -50,7 +50,8 @@ export function load_level(json: string): level_t {
             const size = extract_vec2(entity.size);
             const cell_size = extract_vec2(entity.cell_size);
             const box = box_brick(position, size);
-            box.cell_size = cell_size;
+            box.params[1] = cell_size[0];
+            box.params[2] = cell_size[1];
 
             level.boxes.push(box);
         }

@@ -1,6 +1,6 @@
 import {pow} from "@cl/math";
 import {vec2_addmuls2, vec2_copy, vec2_muls1, vec2_muls2, vec2_zero} from "@cl/vec2.ts";
-import { body_t } from "./entities";
+import {body_t} from "./entities.ts";
 
 export function body_integrate(body: body_t, step: number): void {
     vec2_addmuls2(body.position, body.vel, step);
