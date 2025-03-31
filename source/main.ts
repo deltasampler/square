@@ -16,7 +16,7 @@ import {bg_rdata_new, bg_rend_init, bg_rend_render} from "@engine/bg_rend.ts";
 import {box_t, BOX_TYPE, player_new} from "./entities.ts";
 import {point_rdata_build, point_rdata_instance, point_rdata_new, point_rdata_t, point_rend_build, point_rend_init, point_rend_render} from "@engine/point_rend.ts";
 import { vec4 } from "@cl/vec4.ts";
-import {line_rdata_build, line_rdata_instance, line_rdata_new, line_rdata_t, line_rend_build, line_rend_init, line_rend_render} from "@engine/line_rend.ts";
+import {LINE_CAP_TYPE, LINE_JOIN_TYPE, line_rdata_build, line_rdata_instance, line_rdata_new, line_rdata_t, line_rend_build, line_rend_init, line_rend_render} from "@engine/line_rend.ts";
 
 const root = gui_window(null);
 const canvas = gui_canvas(root);
@@ -282,14 +282,17 @@ rend_player_init();
 line_rend_init();
 const point_count1 = 6;
 const line_rdata = line_rdata_new();
+line_rdata.cap_type = LINE_CAP_TYPE.ARROW;
+line_rdata.join_type = LINE_JOIN_TYPE.BEVEL;
 line_rdata_build(line_rdata, point_count1);
 
-line_rdata_instance(line_rdata, 0, vec2(-16, 0), 1.0, 1, 0, vec4(255, 0, 0, 255));
-line_rdata_instance(line_rdata, 1, vec2(4, 8), 1.0, 0, 0, vec4(255, 0, 0, 255));
-line_rdata_instance(line_rdata, 2, vec2(16, 16), 1.0, 1, 0, vec4(255, 0, 0, 255));
-line_rdata_instance(line_rdata, 3, vec2(25, -5), 1.0, 1, 0, vec4(255, 0, 0, 255));
-line_rdata_instance(line_rdata, 4, vec2(30, 5), 1.0, 1, 0, vec4(255, 0, 0, 255));
-line_rdata_instance(line_rdata, 5, vec2(40, -5), 1.0, 0, 0, vec4(255, 0, 0, 255));
+line_rdata_instance(line_rdata, 0, vec2(-16, 0), 0.5, 1, vec4(255, 0, 0, 255));
+line_rdata_instance(line_rdata, 1, vec2(4, 8), 0.5, 0, vec4(255, 0, 255, 255));
+
+line_rdata_instance(line_rdata, 2, vec2(16, 16), 0.5, 1, vec4(255, 0, 0, 255));
+line_rdata_instance(line_rdata, 3, vec2(25, -5), 0.5, 1, vec4(255, 0, 255, 255));
+line_rdata_instance(line_rdata, 4, vec2(30, 5), 0.5, 1, vec4(255, 0, 0, 255));
+line_rdata_instance(line_rdata, 5, vec2(40, -5), 0.5, 0, vec4(255, 0, 255, 255));
 line_rend_build(line_rdata);
 
 gl.enable(gl.BLEND)
