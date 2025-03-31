@@ -47,6 +47,8 @@ const level = load_level(level_2);
 const player = player_new(vec2_clone(level.spawn_point), vec2(1.0), 10.0);
 const clear_color = rgb(129, 193, 204);
 const camera = cam2_new();
+camera.movement_speed = 0.3;
+camera.zoom_speed = 0.3;
 const grid = grid_rdata_new(vec2(), vec2(1024.0), vec2(1.0), 0.01, rgb(255, 255, 250));
 const background = bg_rdata_new(rgb(30, 116, 214), rgb(124, 198, 228));
 
@@ -56,22 +58,28 @@ box_rdata_build(box_rdata, level.boxes.length);
 io_init();
 
 const mouse = vec2();
+const target = vec2();
+let is_freecam = true;
 
 io_m_move(function(event: m_event_t): void {
     vec2_set(mouse, event.x, event.y);
 
-    const point = cam2_proj_mouse(camera, mouse, canvas_el.width, canvas_el.height);
+    // const point = cam2_proj_mouse(camera, mouse, canvas_el.width, canvas_el.height);
 
-    for (const box of boxes) {
-        if (point_inside_aabb(box.body.position, box.body.size, point)) {
-            console.log(true);
-        }
-    }
+    // for (const box of boxes) {
+    //     if (point_inside_aabb(box.body.position, box.body.size, point)) {
+    //         console.log(true);
+    //     }
+    // }
 });
 
 io_kb_key_down(function(event: kb_event_t): void {
     if (event.code === "KeyR") {
         vec2_copy(player_body.position, level.spawn_point);
+    }
+
+    if (event.code === "Backquote") {
+        is_freecam = !is_freecam;
     }
 });
 
@@ -120,19 +128,45 @@ function update(): void {
     // apply gravity force to player
     vec2_add2(player_body.force, vec2(0.0, -2000.0));
 
-    // apply control forces to player
-    if (io_key_down("KeyA")) {
-        vec2_add2(player_body.force, vec2(-1500.0, 0.0));
-    }
+    if (is_freecam) {
+        if (io_key_down("KeyA")) {
+            target[0] -= camera.movement_speed;
+        }
 
-    if (io_key_down("KeyD")) {
-        vec2_add2(player_body.force, vec2(1500.0, 0.0));
-    }
+        if (io_key_down("KeyD")) {
+            target[0] += camera.movement_speed;
+        }
 
-    // apply jump force to player
-    if (io_key_down("Space") && player_body.contact) {
-        player_body.vel[1] = 80.0;
-        player_body.contact = null;
+        if (io_key_down("KeyS")) {
+            target[1] -= camera.movement_speed;
+        }
+
+        if (io_key_down("KeyW")) {
+            target[1] += camera.movement_speed;
+        }
+
+        if (io_key_down("KeyQ")) {
+            camera.scale -= camera.zoom_speed;
+        }
+
+        if (io_key_down("KeyE")) {
+            camera.scale += camera.zoom_speed;
+        }
+    } else {
+        // apply control forces to player
+        if (io_key_down("KeyA")) {
+            vec2_add2(player_body.force, vec2(-1500.0, 0.0));
+        }
+
+        if (io_key_down("KeyD")) {
+            vec2_add2(player_body.force, vec2(1500.0, 0.0));
+        }
+
+        // apply jump force to player
+        if (io_key_down("Space") && player_body.contact) {
+            player_body.vel[1] = 80.0;
+            player_body.contact = null;
+        }
     }
 
     // apply force to kinematic bodies
@@ -236,26 +270,27 @@ box_rend_build(box_rdata);
 rend_player_init();
 
 // point_rend_init();
-// const point_count = 2048;
+// const point_count0 = 2048;
 // const point_rdata = point_rdata_new();
-// point_rdata_build(point_rdata, point_count);
+// point_rdata_build(point_rdata, point_count0);
 // point_rend_build(point_rdata);
 
-// for (let i = 0; i < point_count; i += 1) {
+// for (let i = 0; i < point_count0; i += 1) {
 //     point_rdata_instance(point_rdata, i, vec2(rand_in(-100, 100), rand_in(-100, 100)), 0.5 + Math.random() * 2.0, vec4(rand_ex(0, 256), rand_ex(0, 256), rand_ex(0, 256), 127));
 // }
 
 line_rend_init();
-const point_count = 3;
+const point_count1 = 6;
 const line_rdata = line_rdata_new();
-line_rdata_build(line_rdata, point_count);
+line_rdata_build(line_rdata, point_count1);
 
-line_rdata_instance(line_rdata, 0, vec2(-16, 0), 1.0, 0, vec4(255, 0, 0, 255));
-line_rdata_instance(line_rdata, 1, vec2(16, 0), 1.0, 0, vec4(0, 255, 0, 255));
-line_rdata_instance(line_rdata, 2, vec2(20, 20), 1.0, 0, vec4(0, 0, 255, 255));
+line_rdata_instance(line_rdata, 0, vec2(-16, 0), 1.0, 1, 0, vec4(255, 0, 0, 255));
+line_rdata_instance(line_rdata, 1, vec2(4, 8), 1.0, 0, 0, vec4(255, 0, 0, 255));
+line_rdata_instance(line_rdata, 2, vec2(16, 16), 1.0, 1, 0, vec4(255, 0, 0, 255));
+line_rdata_instance(line_rdata, 3, vec2(25, -5), 1.0, 1, 0, vec4(255, 0, 0, 255));
+line_rdata_instance(line_rdata, 4, vec2(30, 5), 1.0, 1, 0, vec4(255, 0, 0, 255));
+line_rdata_instance(line_rdata, 5, vec2(40, -5), 1.0, 0, 0, vec4(255, 0, 0, 255));
 line_rend_build(line_rdata);
-
-console.log(line_rdata);
 
 gl.enable(gl.BLEND)
 gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -277,7 +312,13 @@ function render(): void {
         )
     }
 
-    camera.position = vec2_lerp1(camera.position, player_body.position, 0.05);
+
+    if (is_freecam) {
+        camera.position = vec2_lerp1(camera.position, target, 0.05);
+    } else {
+        camera.position = vec2_lerp1(camera.position, player_body.position, 0.05);
+    }
+
     cam2_compute_proj(camera, canvas_el.width, canvas_el.height);
     cam2_compute_view(camera);
 
