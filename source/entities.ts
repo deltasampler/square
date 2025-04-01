@@ -1,6 +1,7 @@
 import {vec2_t, vec3_t, vec4_t} from "@cl/type.ts";
-import {vec2} from "@cl/vec2.ts";
-import {vec3} from "@cl/vec3.ts";
+import {vec2, vec2_clone} from "@cl/vec2.ts";
+import {vec3, vec3_clone} from "@cl/vec3.ts";
+import { vec4_clone } from "@cl/vec4";
 
 export class body_t {
     position: vec2_t;
@@ -35,6 +36,24 @@ export function body_new(): body_t {
     return body;
 }
 
+export function body_clone(body: body_t): body_t {
+    const out = new body_t();
+    out.position = vec2_clone(body.position);
+    out.size = vec2_clone(body.size);
+    out.mass_inv = body.mass_inv;
+    out.force = vec2_clone(body.force);
+    out.acc = vec2_clone(body.acc);
+    out.vel = vec2_clone(body.vel);
+    out.friction = body.friction;
+    out.damping = body.damping;
+    out.restitution = body.restitution;
+    out.is_dynamic = body.is_dynamic;
+    out.can_collide = body.can_collide;
+    out.contact = body.contact;
+
+    return out;
+}
+
 export class animation_t {
     start: vec2_t;
     end: vec2_t;
@@ -51,6 +70,17 @@ export function animation_new(start: vec2_t, end: vec2_t, force: number, dir: nu
     anim.dir = dir;
 
     return anim;
+}
+
+export function animation_clone(anim: animation_t): animation_t {
+    const out = new animation_t();
+    out.start = vec2_clone(anim.start);
+    out.end = vec2_clone(anim.end);
+    out.force = anim.force;
+    out.dir = anim.dir;
+    out.repetitive = anim.repetitive;
+
+    return out;
 }
 
 export class portal_t {
@@ -93,6 +123,8 @@ export enum BOX_TYPE {
 };
 
 export class box_t {
+    drag_pos: vec2_t;
+    drag_size: vec2_t;
     body: body_t;
     inner_color: vec4_t;
     outer_color: vec4_t;
@@ -105,6 +137,25 @@ export class box_t {
     portal: portal_t|null;
     effect: effect_t|null;
 };
+
+export function box_clone(box: box_t): box_t {
+    const out = new box_t();
+
+    out.body = body_clone(box.body);
+    out.inner_color = vec4_clone(box.inner_color);
+    out.outer_color = vec4_clone(box.outer_color);
+    out.option = vec4_clone(box.option);
+    out.params = vec3_clone(box.params);
+    out.is_death = box.is_death;
+    out.is_platform = box.is_platform;
+    out.type = box.type;
+
+    if (box.animation) {
+        out.animation = animation_clone(box.animation);
+    }
+
+    return out;
+}
 
 export function box_new() {
     const box = new box_t();
