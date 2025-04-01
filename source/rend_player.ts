@@ -17,17 +17,17 @@ export function rend_player_init() {
             uniform vec2 u_size;
             out vec2 v_tex_coord;
 
-            const vec2 positions[4] = vec2[4](
-                vec2(-0.5, 0.5),
+            const vec2 positions[4] = vec2[](
                 vec2(-0.5, -0.5),
-                vec2(0.5, 0.5),
-                vec2(0.5, -0.5)
+                vec2(0.5, -0.5),
+                vec2(-0.5, 0.5),
+                vec2(0.5, 0.5)
             );
 
-            const vec2 tex_coords[4] = vec2[4](
+            const vec2 tex_coords[4] = vec2[](
                 vec2(0.0, 0.0),
-                vec2(0.0, 1.0),
                 vec2(1.0, 0.0),
+                vec2(0.0, 1.0),
                 vec2(1.0, 1.0)
             );
 
