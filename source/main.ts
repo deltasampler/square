@@ -1,15 +1,15 @@
 import {gui_window, gui_canvas, gui_render} from "@gui/gui.ts";
-import {io_init, io_kb_key_down, io_key_down, io_m_move, kb_event_t, m_event_t} from "@engine/io.ts";
+import {io_init, io_kb_key_down, io_key_down, io_m_button_down, io_m_button_up, io_m_move, kb_event_t, m_event_t} from "@engine/io.ts";
 import {level_2} from "./levels.ts";
 import {gl_init} from "@engine/gl.ts";
-import {cam2_compute_proj, cam2_compute_view, cam2_new, cam2_proj_mouse} from "@cl/cam2.ts";
+import {cam2_compute_proj, cam2_compute_view, cam2_new, cam2_proj_mouse, cam2_t} from "@cl/cam2.ts";
 import {grid_rdata_new, grid_rend_init, grid_rend_render} from "@engine/grid_rend.ts";
-import {vec2, vec2_add2, vec2_addmuls2, vec2_clamp2, vec2_clone, vec2_copy, vec2_dir1, vec2_dot, vec2_lerp1, vec2_muls1, vec2_muls2, vec2_set, vec2_sub1} from "@cl/vec2.ts";
+import {vec2, vec2_add1, vec2_add2, vec2_addmuls2, vec2_clamp2, vec2_clone, vec2_copy, vec2_dir1, vec2_divs1, vec2_dot, vec2_lerp1, vec2_mul, vec2_mul1, vec2_muls1, vec2_muls2, vec2_set, vec2_sub1} from "@cl/vec2.ts";
 import {rgb} from "@cl/vec3.ts";
 import {box_rdata_build, box_rdata_instance, box_rdata_new, box_rend_build, box_rend_init, box_rend_render} from "@engine/box_rend.ts";
 import {rend_player_init, rend_player_render} from "./rend_player.ts";
-import {min, rand_ex, rand_in} from "@cl/math.ts";
-import {mtv_aabb2_aabb2, overlap_aabb2_aabb2, overlap_aabb2_aabb2_x, point_inside_aabb} from "@cl/collision2.ts";
+import {min, rad, rand_ex, rand_in} from "@cl/math.ts";
+import {mtv_aabb2_aabb2, overlap_aabb2_aabb2, overlap_aabb2_aabb2_x, point_inside_aabb, point_inside_circle} from "@cl/collision2.ts";
 import {body_integrate} from "./phys.ts";
 import {load_level} from "./world.ts";
 import {bg_rdata_new, bg_rend_init, bg_rend_render} from "@engine/bg_rend.ts";
@@ -17,6 +17,7 @@ import {box_t, BOX_TYPE, player_new} from "./entities.ts";
 import {point_rdata_build, point_rdata_instance, point_rdata_new, point_rdata_t, point_rend_build, point_rend_init, point_rend_render} from "@engine/point_rend.ts";
 import { vec4 } from "@cl/vec4.ts";
 import {LINE_CAP_TYPE, LINE_JOIN_TYPE, line_rdata_build, line_rdata_instance, line_rdata_new, line_rdata_t, line_rend_build, line_rend_init, line_rend_render} from "@engine/line_rend.ts";
+import {obb_rdata_build, obb_rdata_instance, obb_rdata_new, obb_rdata_t, obb_rend_build, obb_rend_init, obb_rend_render} from "@engine/obb_rend.ts";
 
 const root = gui_window(null);
 const canvas = gui_canvas(root);
@@ -60,17 +61,129 @@ io_init();
 const mouse = vec2();
 const target = vec2();
 let is_freecam = true;
+let selected: box_t[] = [];
+const selected_pos = vec2();
+const selected_bounds = vec2();
+const point_rad = 0.15;
+const arrow_width = 0.15;
+const arrow_len = 1.5;
+const arrow_col = vec4(250, 83, 45, 255);
+const point_col = vec4(43, 237, 156, 255);
+const drag_point = vec2();
+const drag_dir = vec2();
+let is_drag = false;
 
 io_m_move(function(event: m_event_t): void {
     vec2_set(mouse, event.x, event.y);
 
-    // const point = cam2_proj_mouse(camera, mouse, canvas_el.width, canvas_el.height);
+    if (is_drag) {
+        const point = cam2_proj_mouse(camera, mouse, canvas_el.width, canvas_el.height);
+        const diff = vec2(0, 0);
 
-    // for (const box of boxes) {
-    //     if (point_inside_aabb(box.body.position, box.body.size, point)) {
-    //         console.log(true);
-    //     }
-    // }
+        // move
+        // if (drag_dir[1] == 0) {
+        //     vec2_set(diff, point[0] - drag_point[0], 0);
+        // } else {
+        //     vec2_set(diff, 0, point[1] - drag_point[1]);
+        // }
+
+        // resize
+        if (drag_dir[1] == 0) {
+            vec2_set(diff, (point[0] - drag_point[0]), 0);
+        } else {
+            vec2_set(diff, 0, (point[1] - drag_point[1]));
+        }
+
+        for (const sel of selected) {
+            // move
+            // vec2_copy(sel.body.position, vec2_add1(sel.pos_save, diff));
+
+            // resize
+            const diff2 = vec2_mul1(diff, drag_dir);
+            vec2_muls2(diff2, 1.0);
+
+            // one directional
+            // vec2_copy(sel.body.size, vec2_add1(sel.size_save, diff2));
+            // vec2_copy(sel.body.position, vec2_add1(sel.pos_save, vec2_divs1(diff, 2.0)));
+
+            // bi-directional
+            vec2_copy(sel.body.size, vec2_add1(sel.size_save, vec2_muls1(diff2, 2.0)));
+        }
+    }
+});
+
+io_m_button_down(function(event: m_event_t): void {
+    const point = cam2_proj_mouse(camera, mouse, canvas_el.width, canvas_el.height);
+
+    if (event.button === 0 && !event.ctrl) {
+        if (selected.length) {
+
+            const x = selected_pos[0];
+            const y = selected_pos[1];
+            const x0 = selected_bounds[0] / 2.0;
+            const y0 = selected_bounds[1] / 2.0;
+            const x1 = selected_bounds[0] / 2.0 + arrow_len / 2.0;
+            const y1 = selected_bounds[1] / 2.0 + arrow_len / 2.0;
+
+            const l_arrow = point_inside_aabb(vec2(x - x1, y), vec2(arrow_len, arrow_width * 4.0), point);
+            const r_arrow = point_inside_aabb(vec2(x + x1, y), vec2(arrow_len, arrow_width * 4.0), point);
+            const b_arrow = point_inside_aabb(vec2(x, y - y1), vec2(arrow_width * 4.0, arrow_len), point);
+            const t_arrow = point_inside_aabb(vec2(x, y + y1), vec2(arrow_width * 4.0, arrow_len), point);
+            const is_touch_arrow = l_arrow || r_arrow || b_arrow || t_arrow;
+
+            if (is_touch_arrow) {
+                vec2_copy(drag_point, point);
+
+                // move
+                drag_dir[0] = l_arrow ? -1 : (r_arrow ? 1 : 0);
+                drag_dir[1] = b_arrow ? -1 : (t_arrow ? 1 : 0);
+
+                for (const sel of selected) {
+                    sel.pos_save = vec2_clone(sel.body.position);
+                    sel.size_save = vec2_clone(sel.body.size);
+                }
+
+                is_drag = true;
+            }
+
+            let is_touch_point = false;
+            is_touch_point ||= point_inside_circle(vec2(x - x0, y - y0), point_rad, point);
+            is_touch_point ||= point_inside_circle(vec2(x + x0, y - y0), point_rad, point);
+            is_touch_point ||= point_inside_circle(vec2(x + x0, y + y0), point_rad, point);
+            is_touch_point ||= point_inside_circle(vec2(x - x0, y + y0), point_rad, point);
+
+            if (!point_inside_aabb(selected_pos, selected_bounds, point) && !(is_touch_arrow || is_touch_point)) {
+                for (const box of selected) {
+                    box.option[3] = 0;
+                }
+
+                selected = [];
+            }
+
+            if (is_touch_arrow || is_touch_point) {
+                return;
+            }
+        }
+    }
+
+    let i = 0;
+
+    for (const box of boxes) {
+        if (point_inside_aabb(box.body.position, box.body.size, point)) {
+            if (selected.indexOf(box) < 0) {
+                selected.push(box);
+                box.option[3] = 1;
+            }
+
+            break;
+        }
+
+        i += 1;
+    }
+});
+
+io_m_button_up(function(event: m_event_t): void {
+    is_drag = false;
 });
 
 io_kb_key_down(function(event: kb_event_t): void {
@@ -125,6 +238,58 @@ function format_time(s: number): string {
 }
 
 function update(): void {
+    if (selected.length) {
+        let minx = Infinity;
+        let maxx = -Infinity;
+        let miny = Infinity;
+        let maxy = -Infinity;
+
+        for (const sel_box of selected) {
+            minx = Math.min(minx, sel_box.body.position[0] - sel_box.body.size[0] / 2.0);
+            maxx = Math.max(maxx, sel_box.body.position[0] + sel_box.body.size[0] / 2.0);
+            miny = Math.min(miny, sel_box.body.position[1] - sel_box.body.size[1] / 2.0);
+            maxy = Math.max(maxy, sel_box.body.position[1] + sel_box.body.size[1] / 2.0);
+        }
+
+        vec2_set(selected_pos, (minx + maxx) / 2.0, (miny + maxy) / 2.0);
+        vec2_set(selected_bounds, maxx - minx, maxy - miny);
+
+
+        obb_rdata_instance(obb_rdata, 0, selected_pos, selected_bounds, 0, vec4(36, 71, 242, 10), vec4(36, 71, 242, 255), 0.15);
+
+        const x = selected_pos[0];
+        const y = selected_pos[1];
+        const x0 = selected_bounds[0] / 2.0;
+        const x1 = selected_bounds[0] / 2.0 + arrow_len;
+        const y0 = selected_bounds[1] / 2.0;
+        const y1 = selected_bounds[1] / 2.0 + arrow_len;
+
+        line_rdata_instance(line_rdata, 0, vec2(x - x0, y), arrow_width, 1, arrow_col);
+        line_rdata_instance(line_rdata, 1, vec2(x - x1, y), arrow_width, 0, arrow_col);
+
+        line_rdata_instance(line_rdata, 2, vec2(x + x0, y), arrow_width, 1, arrow_col);
+        line_rdata_instance(line_rdata, 3, vec2(x + x1, y), arrow_width, 0, arrow_col);
+
+        line_rdata_instance(line_rdata, 4, vec2(x, y - y0), arrow_width, 1, arrow_col);
+        line_rdata_instance(line_rdata, 5, vec2(x, y - y1), arrow_width, 0, arrow_col);
+
+        line_rdata_instance(line_rdata, 6, vec2(x, y + y0), arrow_width, 1, arrow_col);
+        line_rdata_instance(line_rdata, 7, vec2(x, y + y1), arrow_width, 0, arrow_col);
+
+        // point_rdata_instance(point_rdata, 0, vec2(x - x0, y), point_rad, point_col);
+        // point_rdata_instance(point_rdata, 1, vec2(x + x0, y), point_rad, point_col);
+
+        // point_rdata_instance(point_rdata, 2, vec2(x, y - y0), point_rad, point_col);
+        // point_rdata_instance(point_rdata, 3, vec2(x, y + y0), point_rad, point_col);
+
+        point_rdata_instance(point_rdata, 4, vec2(x - x0, y - y0), point_rad, point_col);
+        point_rdata_instance(point_rdata, 5, vec2(x + x0, y - y0), point_rad, point_col);
+
+        point_rdata_instance(point_rdata, 6, vec2(x + x0, y + y0), point_rad, point_col);
+        point_rdata_instance(point_rdata, 7, vec2(x - x0, y + y0), point_rad, point_col);
+
+    }
+
     // apply gravity force to player
     vec2_add2(player_body.force, vec2(0.0, -2000.0));
 
@@ -269,34 +434,29 @@ box_rend_init();
 box_rend_build(box_rdata);
 rend_player_init();
 
-// point_rend_init();
-// const point_count0 = 2048;
-// const point_rdata = point_rdata_new();
-// point_rdata_build(point_rdata, point_count0);
-// point_rend_build(point_rdata);
-
-// for (let i = 0; i < point_count0; i += 1) {
-//     point_rdata_instance(point_rdata, i, vec2(rand_in(-100, 100), rand_in(-100, 100)), 0.5 + Math.random() * 2.0, vec4(rand_ex(0, 256), rand_ex(0, 256), rand_ex(0, 256), 127));
-// }
+point_rend_init();
+const point_count0 = 8;
+const point_rdata = point_rdata_new();
+point_rdata_build(point_rdata, point_count0);
+point_rend_build(point_rdata);
 
 line_rend_init();
-const point_count1 = 6;
+const point_count1 = 8;
 const line_rdata = line_rdata_new();
 line_rdata.cap_type = LINE_CAP_TYPE.ARROW;
-line_rdata.join_type = LINE_JOIN_TYPE.BEVEL;
+line_rdata.join_type = LINE_JOIN_TYPE.NONE;
 line_rdata_build(line_rdata, point_count1);
-
-line_rdata_instance(line_rdata, 0, vec2(-16, 0), 0.5, 1, vec4(255, 0, 0, 255));
-line_rdata_instance(line_rdata, 1, vec2(4, 8), 0.5, 0, vec4(255, 0, 255, 255));
-
-line_rdata_instance(line_rdata, 2, vec2(16, 16), 0.5, 1, vec4(255, 0, 0, 255));
-line_rdata_instance(line_rdata, 3, vec2(25, -5), 0.5, 1, vec4(255, 0, 255, 255));
-line_rdata_instance(line_rdata, 4, vec2(30, 5), 0.5, 1, vec4(255, 0, 0, 255));
-line_rdata_instance(line_rdata, 5, vec2(40, -5), 0.5, 0, vec4(255, 0, 255, 255));
 line_rend_build(line_rdata);
+
+obb_rend_init();
+const obb_rdata = obb_rdata_new();
+obb_rdata_build(obb_rdata, 1);
+obb_rdata_instance(obb_rdata, 0, vec2(4, 4), vec2(4, 4), 0, vec4(0, 0, 0, 0), vec4(0, 0, 255, 255), 0.2);
+obb_rend_build(obb_rdata);
 
 gl.enable(gl.BLEND)
 gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+gl.enable(gl.CULL_FACE);
 
 function render(): void {
     for (let i = 0; i < boxes.length; ++i) {
@@ -331,10 +491,15 @@ function render(): void {
 
     bg_rend_render(background, camera, time);
     grid_rend_render(grid, camera);
-    // point_rend_render(point_rdata, camera);
-    line_rend_render(line_rdata, camera);
+
     box_rend_render(box_rdata, camera);
     rend_player_render(player, camera);
+
+    if (selected.length) {
+        obb_rend_render(obb_rdata, camera);
+        line_rend_render(line_rdata, camera);
+        point_rend_render(point_rdata, camera);
+    }
 }
 
 function loop(): void {
