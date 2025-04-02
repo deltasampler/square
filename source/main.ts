@@ -1,4 +1,4 @@
-import {gui_window, gui_canvas, gui_render} from "@gui/gui.ts";
+import {gui_window, gui_canvas, gui_render, gui_window_grid, unit, UT, gui_window_layout, gui_collapsing_header, gui_render_input, gui_render_component, gui_reload_component, gui_input_vec, gui_color_edit, COLOR_MODE, gui_input_number, getset_t, gs_object, gui_slider_number, gui_bool, gui_text, get_enum_values, get_enum_keys, gui_select} from "@gui/gui.ts";
 import {io_init, io_kb_key_down, io_key_down, io_m_button_down, io_m_button_up, io_m_move, kb_event_t, m_event_t} from "@engine/io.ts";
 import {level_2} from "./levels.ts";
 import {gl_init} from "@engine/gl.ts";
@@ -13,14 +13,13 @@ import {mtv_aabb2_aabb2, overlap_aabb2_aabb2, overlap_aabb2_aabb2_x, point_insid
 import {body_integrate} from "./phys.ts";
 import {load_level} from "./world.ts";
 import {bg_rdata_new, bg_rend_init, bg_rend_render} from "@engine/bg_rend.ts";
-import {box_clone, box_t, BOX_TYPE, player_new} from "./entities.ts";
+import {box_clone, box_t, BOX_TYPE, OPT_BORDER, OPT_MASK, player_new} from "./entities.ts";
 import {point_rdata_build, point_rdata_instance, point_rdata_new, point_rend_build, point_rend_init, point_rend_render} from "@engine/point_rend.ts";
 import {vec4} from "@cl/vec4.ts";
 import {LINE_CAP_TYPE, LINE_JOIN_TYPE, line_rdata_build, line_rdata_instance, line_rdata_new, line_rend_build, line_rend_init, line_rend_render} from "@engine/line_rend.ts";
 import {obb_rdata_build, obb_rdata_instance, obb_rdata_new, obb_rend_build, obb_rend_init, obb_rend_render} from "@engine/obb_rend.ts";
 
-const root = gui_window(null);
-const canvas = gui_canvas(root);
+
 
 const timer_el = document.createElement("div");
 timer_el.className = "timer";
@@ -39,9 +38,10 @@ timer_el.style.pointerEvents = "none";
 timer_el.innerHTML = "0:00.000";
 document.body.append(timer_el);
 
-gui_render(root, document.body);
 
-const canvas_el = canvas.canvas_el;
+
+
+const canvas_el = document.createElement("canvas");
 const gl = gl_init(canvas_el);
 
 const level = load_level(level_2);
@@ -173,6 +173,10 @@ function compute_bound() {
 }
 
 io_m_move(function(event: m_event_t): void {
+    if (event.target !== canvas_el) {
+        return;
+    }
+
     vec2_set(mouse_pos, event.x, event.y);
 
     const point = cam2_proj_mouse(camera, mouse_pos, canvas_el.width, canvas_el.height);
@@ -196,9 +200,11 @@ io_m_move(function(event: m_event_t): void {
                     if (event.shift) {
                         vec2_copy(body.size, vec2_add1(box.drag_size, vec2_muls1(diff, 2.0)));
                         vec2_snap(body.size, vec2_muls1(grid_size, 2.0), body.size);
+                        vec2_clamp2(body.size, vec2(1.0), vec2(1000.0));
                     } else {
                         vec2_copy(body.size, vec2_add1(box.drag_size, diff));
                         vec2_snap(body.size, grid_size, body.size);
+                        vec2_clamp2(body.size, vec2(1.0), vec2(1000.0));
 
                         const diff_size = vec2_mul2(vec2_sub1(body.size, box.drag_size), drag_dir);
                         vec2_copy(body.position, vec2_add1(box.drag_pos, vec2_divs1(diff_size, 2.0)));
@@ -218,6 +224,10 @@ io_m_move(function(event: m_event_t): void {
 });
 
 io_m_button_down(function(event: m_event_t): void {
+    if (event.target !== canvas_el) {
+        return;
+    }
+
     vec2_set(mouse_pos, event.x, event.y);
 
     const point = cam2_proj_mouse(camera, mouse_pos, canvas_el.width, canvas_el.height);
@@ -231,6 +241,7 @@ io_m_button_down(function(event: m_event_t): void {
             clear_selected_boxes();
             compute_bound();
         }
+
     } else if (editor_mode === EDITOR_MODE.TRANSFORM) {
         const x = bound_pos[0];
         const y = bound_pos[1];
@@ -288,6 +299,10 @@ io_m_button_down(function(event: m_event_t): void {
 });
 
 io_m_button_up(function(event: m_event_t): void {
+    if (event.target !== canvas_el) {
+        return;
+    }
+
     vec2_set(mouse_pos, event.x, event.y);
 
     if (editor_mode === EDITOR_MODE.SELECT) {
@@ -295,6 +310,7 @@ io_m_button_up(function(event: m_event_t): void {
         compute_select();
         find_selected_boxes();
         compute_bound();
+        load_box_ch();
     } else if (editor_mode === EDITOR_MODE.TRANSFORM) {
         drag_flag = 0;
     }
@@ -665,3 +681,64 @@ function loop(): void {
 }
 
 loop();
+
+const root = gui_window(null);
+gui_window_grid(
+    root,
+    [unit(300, UT.PX), unit(1, UT.FR), unit(300, UT.PX)],
+    [unit(1, UT.FR), unit(1, UT.FR), unit(1, UT.FR)]
+);
+
+const left = gui_window(root);
+const right = gui_window(root);
+gui_window_layout(
+    root,
+    [
+        left, right, right,
+        left, right, right,
+        left, right, right
+    ]
+);
+
+const box_ch = gui_collapsing_header(left, "Box");
+
+function load_box_ch(): void {
+    box_ch.children = [];
+
+    if (select_boxes.length == 1) {
+        const box = select_boxes[0];
+        const body = box.body;
+
+        // body
+        gui_input_vec(box_ch, "Position", body.position, 0.5, -10000.0, 10000.0, 2);
+        gui_input_vec(box_ch, "Size", body.size, 0.5, -10000.0, 10000.0, 2);
+        gui_input_number(box_ch, "Mass", gs_object(body, "mass_inv"), 0.1, 0.0, 1000.0, function(value: number) {
+            body.mass_inv = 1 / value;
+        });
+        gui_input_vec(box_ch, "Force", body.force, 0.1, -10000.0, 10000.0, 2);
+        gui_input_vec(box_ch, "Acceleration", body.acc, 0.1, -10000.0, 10000.0, 2);
+        gui_input_vec(box_ch, "Velocity", body.vel, 0.1, -10000.0, 10000.0, 2);
+        gui_slider_number(box_ch, "Friction", gs_object(body, "friction"), 0.01, 0.0, 1.0);
+        gui_slider_number(box_ch, "Damping", gs_object(body, "damping"), 0.01, 0.0, 1.0);
+        gui_slider_number(box_ch, "Restitution", gs_object(body, "restitution"), 0.01, 0.0, 1.0);
+        gui_bool(box_ch, "Is Dynamic", gs_object(body, "is_dynamic"));
+        gui_bool(box_ch, "Can Collide", gs_object(body, "can_collide"));
+
+        // box
+        gui_color_edit(box_ch, "Inner Color", COLOR_MODE.R_0_255, box.inner_color);
+        gui_color_edit(box_ch, "Outer Color", COLOR_MODE.R_0_255, box.outer_color);
+        gui_bool(box_ch, "Is Death", gs_object(box, "is_death"));
+        gui_bool(box_ch, "Is Platform", gs_object(box, "is_platform"));
+        gui_select(box_ch, "Mask", gs_object(box.option, "0"), get_enum_keys(OPT_MASK), get_enum_values(OPT_MASK));
+        gui_select(box_ch, "Border", gs_object(box.option, "1"), get_enum_keys(OPT_BORDER), get_enum_values(OPT_BORDER));
+        gui_select(box_ch, "Border", gs_object(box.option, "2"), get_enum_keys(OPT_BORDER), get_enum_values(OPT_BORDER));
+        gui_select(box_ch, "Selected", gs_object(box.option, "3"), ["False", "True"], [0, 1]);
+    }
+
+    gui_reload_component(box_ch);
+}
+
+const canvas = gui_canvas(right);
+canvas.canvas_el = canvas_el;
+
+gui_render(root, document.body);
