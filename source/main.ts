@@ -6,7 +6,7 @@ import {cam2_compute_proj, cam2_compute_view, cam2_new, cam2_proj_mouse, cam2_t}
 import {grid_rdata_new, grid_rend_init, grid_rend_render} from "@engine/grid_rend.ts";
 import {vec2, vec2_abs, vec2_add1, vec2_add2, vec2_addmuls2, vec2_clamp2, vec2_clone, vec2_copy, vec2_dir1, vec2_divs1, vec2_dot, vec2_lerp1, vec2_mul1, vec2_mul2, vec2_muls1, vec2_muls2, vec2_set, vec2_snap, vec2_sub1, vec2_zero} from "@cl/vec2.ts";
 import {rgb} from "@cl/vec3.ts";
-import {box_rdata_build, box_rdata_instance, box_rdata_new, box_rdata_t, box_rend_build, box_rend_init, box_rend_render} from "@engine/box_rend.ts";
+import {box_rdata_build, box_rdata_instance, box_rdata_new, box_rend_build, box_rend_init, box_rend_render} from "@engine/box_rend.ts";
 import {rend_player_init, rend_player_render} from "./rend_player.ts";
 import {min} from "@cl/math.ts";
 import {mtv_aabb2_aabb2, overlap_aabb2_aabb2, overlap_aabb2_aabb2_x, point_inside_aabb, point_inside_circle} from "@cl/collision2.ts";
@@ -15,7 +15,7 @@ import {load_level} from "./world.ts";
 import {bg_rdata_new, bg_rend_init, bg_rend_render} from "@engine/bg_rend.ts";
 import {box_clone, box_t, BOX_TYPE, player_new} from "./entities.ts";
 import {point_rdata_build, point_rdata_instance, point_rdata_new, point_rend_build, point_rend_init, point_rend_render} from "@engine/point_rend.ts";
-import { vec4 } from "@cl/vec4.ts";
+import {vec4} from "@cl/vec4.ts";
 import {LINE_CAP_TYPE, LINE_JOIN_TYPE, line_rdata_build, line_rdata_instance, line_rdata_new, line_rend_build, line_rend_init, line_rend_render} from "@engine/line_rend.ts";
 import {obb_rdata_build, obb_rdata_instance, obb_rdata_new, obb_rend_build, obb_rend_init, obb_rend_render} from "@engine/obb_rend.ts";
 
@@ -73,12 +73,15 @@ let editor_mode = EDITOR_MODE.SELECT;
 const select_outline = 0.15;
 const select_col = vec4(36, 71, 242, 255);
 const point_rad = 0.15;
+const point_rad_factor = 2.0;
 const point_col = vec4(43, 237, 156, 255);
 const arrow_len = 1.5;
 const arrow_width = 0.15;
+const arrow_width_factor = 4.0;
 const arrow_col = vec4(250, 83, 45, 255);
+const grid_size = vec2(0.5);
 
-let drag_flag = false;
+let drag_flag = 0;
 const drag_pos = vec2();
 const drag_dir = vec2();
 
@@ -93,19 +96,21 @@ const bound_pos = vec2();
 const bound_size = vec2();
 let select_boxes: box_t[] = [];
 
-let box_flag = false;
+let drag_box_flag = 0;
+let drag_arrow_flag = 0;
+let drag_point_flag = 0
 
-let arrow_left_flag = false;
-let arrow_right_flag = false;
-let arrow_down_flag = false;
-let arrow_up_flag = false;
-let arrow_flag = false
-
-let point_ld_flag = false;
-let point_rd_flag = false;
-let point_lu_flag = false;
-let point_ru_flag = false;
-let point_flag = false
+const drag_dir_map = [
+    vec2(0, 0),
+    vec2(-1, 0),
+    vec2(1, 0),
+    vec2(0, -1),
+    vec2(0, 1),
+    vec2(-1, -1),
+    vec2(1, -1),
+    vec2(-1, 1),
+    vec2(1, 1)
+];
 
 let copy_boxes: box_t[] = [];
 
@@ -181,38 +186,29 @@ io_m_move(function(event: m_event_t): void {
         compute_select();
     } else if (editor_mode === EDITOR_MODE.TRANSFORM) {
         if (drag_flag) {
-            const diff = vec2(0, 0);
-
-            if (drag_dir[1] == 0) {
-                vec2_set(diff, point[0] - drag_pos[0], 0);
-            } else {
-                vec2_set(diff, 0, point[1] - drag_pos[1]);
-            }
+            const diff = vec2((point[0] - drag_pos[0]) * drag_dir[0], (point[1] - drag_pos[1]) * drag_dir[1]);
+            const diff_abs = vec2_mul1(diff, drag_dir);
 
             for (const box of select_boxes) {
                 const body = box.body;
 
-                if (point_flag) {
-                    const diff = vec2(point[0] - drag_pos[0], point[1] - drag_pos[1]);
-                    const diff2 = vec2_mul1(diff, drag_dir);
-
+                if (drag_point_flag) {
                     if (event.shift) {
-                        vec2_copy(body.size, vec2_add1(box.drag_size, vec2_muls1(diff2, 2.0)));
-                        vec2_snap(body.size, vec2(1.0), body.size);
+                        vec2_copy(body.size, vec2_add1(box.drag_size, vec2_muls1(diff, 2.0)));
+                        vec2_snap(body.size, vec2_muls1(grid_size, 2.0), body.size);
                     } else {
-                        vec2_copy(body.size, vec2_add1(box.drag_size, diff2));
-                        vec2_snap(body.size, vec2(0.5), body.size);
+                        vec2_copy(body.size, vec2_add1(box.drag_size, diff));
+                        vec2_snap(body.size, grid_size, body.size);
 
-                        const diff4 = vec2_mul2(vec2_sub1(body.size, box.drag_size), drag_dir);
-                        vec2_copy(body.position, vec2_add1(box.drag_pos, vec2_divs1(diff4, 2.0)));
+                        const diff_size = vec2_mul2(vec2_sub1(body.size, box.drag_size), drag_dir);
+                        vec2_copy(body.position, vec2_add1(box.drag_pos, vec2_divs1(diff_size, 2.0)));
                     }
-                } else if (arrow_flag) {
+                } else if (drag_arrow_flag) {
+                    vec2_copy(body.position, vec2_add1(box.drag_pos, diff_abs));
+                    vec2_snap(body.position, grid_size, body.position);
+                } else if (drag_box_flag) {
                     vec2_copy(body.position, vec2_add1(box.drag_pos, diff));
-                    vec2_snap(body.position, vec2(0.5), body.position);
-                } else if (box_flag) {
-                    const diff = vec2(point[0] - drag_pos[0], point[1] - drag_pos[1]);
-                    vec2_copy(body.position, vec2_add1(box.drag_pos, diff));
-                    vec2_snap(body.position, vec2(0.5), body.position);
+                    vec2_snap(body.position, grid_size, body.position);
                 }
 
                 compute_bound();
@@ -236,7 +232,6 @@ io_m_button_down(function(event: m_event_t): void {
             compute_bound();
         }
     } else if (editor_mode === EDITOR_MODE.TRANSFORM) {
-        // drag
         const x = bound_pos[0];
         const y = bound_pos[1];
         const x0 = bound_size[0] / 2.0;
@@ -244,53 +239,45 @@ io_m_button_down(function(event: m_event_t): void {
         const x1 = bound_size[0] / 2.0 + arrow_len / 2.0;
         const y1 = bound_size[1] / 2.0 + arrow_len / 2.0;
 
-        box_flag = point_inside_aabb(bound_pos, bound_size, point);
+        drag_flag = 0;
 
-        const point_left_flag = point_inside_circle(vec2(x - x0, y), point_rad * 2.0, point);
-        const point_right_flag = point_inside_circle(vec2(x + x0, y), point_rad * 2.0, point);
-        const point_down_flag = point_inside_circle(vec2(x, y - y0), point_rad * 2.0, point);
-        const point_up_flag = point_inside_circle(vec2(x, y + y0), point_rad * 2.0, point);
+        // point
+        drag_point_flag = 0;
+        const drag_point_l_flag = Number(point_inside_circle(vec2(x - x0, y), point_rad * point_rad_factor, point)) * 1;
+        const drag_point_r_flag = Number(point_inside_circle(vec2(x + x0, y), point_rad * point_rad_factor, point)) * 2;
+        const drag_point_d_flag = Number(point_inside_circle(vec2(x, y - y0), point_rad * point_rad_factor, point)) * 3;
+        const drag_point_u_flag = Number(point_inside_circle(vec2(x, y + y0), point_rad * point_rad_factor, point)) * 4;
+        const drag_point_ld_flag = Number(point_inside_circle(vec2(x - x0, y - y0), point_rad * point_rad_factor, point)) * 5;
+        const drag_point_rd_flag = Number(point_inside_circle(vec2(x + x0, y - y0), point_rad * point_rad_factor, point)) * 6;
+        const drag_point_lu_flag = Number(point_inside_circle(vec2(x - x0, y + y0), point_rad * point_rad_factor, point)) * 7;
+        const drag_point_ru_flag = Number(point_inside_circle(vec2(x + x0, y + y0), point_rad * point_rad_factor, point)) * 8;
+        drag_point_flag = drag_point_l_flag + drag_point_r_flag + drag_point_d_flag + drag_point_u_flag + drag_point_ld_flag + drag_point_rd_flag + drag_point_lu_flag + drag_point_ru_flag;
 
-        point_ld_flag = point_inside_circle(vec2(x - x0, y - y0), point_rad * 2.0, point);
-        point_rd_flag = point_inside_circle(vec2(x + x0, y - y0), point_rad * 2.0, point);
-        point_lu_flag = point_inside_circle(vec2(x - x0, y + y0), point_rad * 2.0, point);
-        point_ru_flag = point_inside_circle(vec2(x + x0, y + y0), point_rad * 2.0, point);
-        point_flag = point_left_flag || point_right_flag || point_down_flag || point_up_flag || point_ld_flag || point_rd_flag || point_lu_flag || point_ru_flag;
+        // arrow
+        drag_arrow_flag = 0;
 
-        arrow_left_flag = point_inside_aabb(vec2(x - x1, y), vec2(arrow_len, arrow_width * 4.0), point);
-        arrow_right_flag = point_inside_aabb(vec2(x + x1, y), vec2(arrow_len, arrow_width * 4.0), point);
-        arrow_down_flag = point_inside_aabb(vec2(x, y - y1), vec2(arrow_width * 4.0, arrow_len), point);
-        arrow_up_flag = point_inside_aabb(vec2(x, y + y1), vec2(arrow_width * 4.0, arrow_len), point);
-        arrow_flag = arrow_left_flag || arrow_right_flag || arrow_down_flag || arrow_up_flag;
-
-        drag_flag = box_flag || point_flag || arrow_flag;
-
-        vec2_copy(drag_pos, point);
-
-        if (point_flag) {
-            if (point_left_flag || point_right_flag || point_down_flag || point_up_flag) {
-                drag_dir[0] = point_left_flag ? -1 : (point_right_flag ? 1 : 0);
-                drag_dir[1] = point_down_flag ? -1 : (point_up_flag ? 1 : 0);
-
-                if (point_left_flag || point_right_flag) {
-                    drag_dir[1] = 0;
-                } else {
-                    drag_dir[0] = 0;
-                }
-            } else {
-                const left = point_ld_flag || point_lu_flag;
-                const right = point_rd_flag || point_ru_flag;
-                const down = point_ld_flag || point_rd_flag;
-                const up = point_lu_flag || point_ru_flag;
-
-                drag_dir[0] = left ? -1 : (right ? 1 : 0);
-                drag_dir[1] = down ? -1 : (up ? 1 : 0);
-            }
-        } else if (arrow_flag) {
-            drag_dir[0] = arrow_left_flag ? -1 : (arrow_right_flag ? 1 : 0);
-            drag_dir[1] = arrow_down_flag ? -1 : (arrow_up_flag ? 1 : 0);
+        if (!drag_point_flag) {
+            const arrow_left_flag = Number(point_inside_aabb(vec2(x - x1, y), vec2(arrow_len, arrow_width * arrow_width_factor), point)) * 1;
+            const arrow_right_flag = Number(point_inside_aabb(vec2(x + x1, y), vec2(arrow_len, arrow_width * arrow_width_factor), point)) * 2;
+            const arrow_down_flag = Number(point_inside_aabb(vec2(x, y - y1), vec2(arrow_width * arrow_width_factor, arrow_len), point)) * 3;
+            const arrow_up_flag = Number(point_inside_aabb(vec2(x, y + y1), vec2(arrow_width * arrow_width_factor, arrow_len), point)) * 4;
+            drag_arrow_flag = arrow_left_flag + arrow_right_flag + arrow_down_flag + arrow_up_flag;
         }
 
+        // box
+        drag_box_flag = 0;
+
+        if (!drag_point_flag && !drag_arrow_flag) {
+            drag_box_flag = Number(point_inside_aabb(bound_pos, bound_size, point)) * 8;
+            drag_box_flag = Number(point_inside_aabb(bound_pos, bound_size, point)) * 8;
+        }
+
+        drag_flag = drag_point_flag + drag_arrow_flag + drag_box_flag;
+
+        vec2_copy(drag_pos, point);
+        vec2_copy(drag_dir, drag_dir_map[drag_flag]);
+
+        // store position and size before transforming
         for (const box of select_boxes) {
             const body = box.body;
 
@@ -309,7 +296,7 @@ io_m_button_up(function(event: m_event_t): void {
         find_selected_boxes();
         compute_bound();
     } else if (editor_mode === EDITOR_MODE.TRANSFORM) {
-        drag_flag = false;
+        drag_flag = 0;
     }
 });
 
@@ -381,8 +368,6 @@ io_kb_key_down(function(event: kb_event_t): void {
         for (const box of select_boxes) {
             copy_boxes.push(box_clone(box));
         }
-
-        console.log(copy_boxes);
     }
 
     if (event.code === "KeyV" && event.ctrl && copy_boxes.length) {
@@ -399,6 +384,20 @@ io_kb_key_down(function(event: kb_event_t): void {
 
         select_boxes = [...copy_boxes];
         copy_boxes = [];
+    }
+
+    if (event.code === "Delete") {
+        for (const box of select_boxes) {
+            const index = boxes.indexOf(box);
+
+            if (index > -1) {
+                boxes.splice(index, 1);
+            }
+        }
+
+        select_boxes = [];
+        compute_bound();
+        box_rdata.len = boxes.length;
     }
 });
 
@@ -588,24 +587,21 @@ box_rend_init();
 box_rend_build(box_rdata);
 rend_player_init();
 
-point_rend_init();
-const point_count0 = 8;
 const point_rdata = point_rdata_new();
-point_rdata_build(point_rdata, point_count0);
+point_rdata_build(point_rdata, 8);
+point_rend_init();
 point_rend_build(point_rdata);
 
-line_rend_init();
-const point_count1 = 8;
 const line_rdata = line_rdata_new();
 line_rdata.cap_type = LINE_CAP_TYPE.ARROW;
 line_rdata.join_type = LINE_JOIN_TYPE.NONE;
-line_rdata_build(line_rdata, point_count1);
+line_rdata_build(line_rdata, 8);
+line_rend_init();
 line_rend_build(line_rdata);
 
-obb_rend_init();
 const obb_rdata = obb_rdata_new();
 obb_rdata_build(obb_rdata, 2);
-obb_rdata_instance(obb_rdata, 0, vec2(4, 4), vec2(4, 4), 0, vec4(0, 0, 0, 0), vec4(0, 0, 255, 255), 0.2);
+obb_rend_init();
 obb_rend_build(obb_rdata);
 
 gl.enable(gl.BLEND)
@@ -628,7 +624,6 @@ function render(): void {
             box.params
         )
     }
-
 
     if (is_freecam) {
         camera.position = vec2_lerp1(camera.position, target, 0.05);
