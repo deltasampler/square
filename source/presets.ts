@@ -16,6 +16,7 @@ export function box_start_zone(position: vec2_t, size: vec2_t): box_t {
     box.inner_color = vec4(0, 0, 0, 25);
     box.outer_color = vec4(178, 255, 161, 255);
     box.option = vec4(OPT_MASK.DEFAULT, OPT_BORDER.ALL, OPT_TEXTURE.FLAT, 0);
+    box.params[0] = 0.2;
 
     return box;
 }
@@ -102,7 +103,7 @@ export function box_mover(size: vec2_t, start: vec2_t, end: vec2_t, force: numbe
     box.params[0] = 0.1;
     box.option = vec4(OPT_MASK.DEFAULT, OPT_BORDER.ALL, OPT_TEXTURE.FLAT, 0);
 
-    box.animation = animation_new(start, end, force, dir);
+    box.animation = animation_new(start, end, force, dir, true);
 
     return box;
 }
