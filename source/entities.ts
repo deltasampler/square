@@ -78,23 +78,22 @@ export function body_to_json(body: body_t): Record<string, any> {
 
 export function body_from_json(data: Record<string, any>): body_t {
     const body = new body_t();
-    body.position = new Float32Array(data.position ?? [0, 0]);
-    body.size = new Float32Array(data.size ?? [0, 0]);
-    body.rotation = data.rotation ?? 0;
-    body.mass_inv = data.mass_inv ?? 0;
-    body.force = new Float32Array(data.force ?? [0, 0]);
-    body.acc = new Float32Array(data.acc ?? [0, 0]);
-    body.vel = new Float32Array(data.vel ?? [0, 0]);
-    body.friction = data.friction ?? 0;
-    body.damping = data.damping ?? 0;
-    body.restitution = data.restitution ?? 0;
+    body.position = new Float32Array(data.position ?? [0.0, 0.0]);
+    body.size = new Float32Array(data.size ?? [0.0, 0.0]);
+    body.rotation = data.rotation ?? 0.0;
+    body.mass_inv = data.mass_inv ?? 0.0;
+    body.force = new Float32Array(data.force ?? [0.0, 0.0]);
+    body.acc = new Float32Array(data.acc ?? [0.0, 0.0]);
+    body.vel = new Float32Array(data.vel ?? [0.0, 0.0]);
+    body.friction = data.friction ?? 0.0;
+    body.damping = data.damping ?? 0.0;
+    body.restitution = data.restitution ?? 0.0;
     body.can_collide = data.can_collide ?? false;
     body.is_dynamic = data.is_dynamic ?? false;
     body.contact = null;
 
     return body;
 }
-
 
 // animation
 export class animation_t {
@@ -139,10 +138,10 @@ export function animation_to_json(animation: animation_t): Record<string, any> {
 
 export function animation_from_json(data: Record<string, any>): animation_t {
     const animation = new animation_t();
-    animation.start = new Float32Array(data.start ?? [0, 0]);
-    animation.end = new Float32Array(data.end ?? [0, 0]);
-    animation.force = data.force ?? 0;
-    animation.dir = data.dir ?? 0;
+    animation.start = new Float32Array(data.start ?? [0.0, 0.0]);
+    animation.end = new Float32Array(data.end ?? [0.0, 0.0]);
+    animation.force = data.force ?? 0.0;
+    animation.dir = data.dir ?? 0.0;
     animation.repetitive = data.repetitive ?? false;
 
     return animation;
@@ -272,11 +271,15 @@ export function box_from_json(data: Record<string, any>): box_t {
     box.inner_color = new Float32Array(data.inner_color ?? [0, 0, 0, 0]);
     box.outer_color = new Float32Array(data.outer_color ?? [0, 0, 0, 0]);
     box.option = new Float32Array(data.option ?? [0, 0, 0, 0]);
-    box.params = new Float32Array(data.params ?? [0, 0, 0]);
+    box.params = new Float32Array(data.params ?? [0.0, 0.0, 0.0]);
     box.is_death = data.is_death ?? false;
     box.is_platform = data.is_platform ?? false;
     box.body = body_from_json(data.body);
     box.animation = data.animation ? animation_from_json(data.animation) : null;
+    box.effect = null;
+    box.portal = null;
+    box.drag_pos = vec2();
+    box.drag_size = vec2();
 
     return box;
 }
@@ -349,4 +352,12 @@ export function level_dedup(level: level_t): void {
     }
 
     level.boxes = boxes;
+}
+
+export function level_sort(level: level_t): void {
+    level.boxes.sort((a, b) => b.zindex - a.zindex);
+}
+
+export function level_load(level: level_t, str: string): void {
+    level.boxes = [];
 }

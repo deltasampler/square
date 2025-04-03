@@ -1,22 +1,42 @@
-import {gui_window, gui_canvas, gui_render, gui_window_grid, unit, UT, gui_window_layout, gui_collapsing_header, gui_reload_component, gui_input_vec, gui_color_edit, COLOR_MODE, gui_input_number, gs_object, gui_slider_number, gui_bool, gui_text, get_enum_values, get_enum_keys, gui_select, clamp} from "@gui/gui.ts";
+import {gui_window, gui_canvas, gui_render, gui_window_grid, unit, UT, gui_window_layout, gui_collapsing_header, gs_object, gui_select, gui_button} from "@gui/gui.ts";
 import {io_init, io_kb_key_down, io_key_down, io_m_button_down, io_m_button_up, io_m_move, kb_event_t, m_event_t} from "@engine/io.ts";
 import {LEVELS} from "./levels.ts";
 import {gl_init} from "@engine/gl.ts";
-import {cam2_compute_proj, cam2_compute_view, cam2_new, cam2_proj_mouse, cam2_t} from "@cl/cam2.ts";
-import {grid_rdata_new, grid_rend_init, grid_rend_render} from "@engine/grid_rend.ts";
-import {vec2, vec2_abs, vec2_add1, vec2_add2, vec2_addmuls2, vec2_clamp2, vec2_clone, vec2_copy, vec2_dir1, vec2_divs1, vec2_dot, vec2_len, vec2_lerp1, vec2_mul1, vec2_mul2, vec2_muls1, vec2_muls2, vec2_print, vec2_set, vec2_snap, vec2_sub1, vec2_zero} from "@cl/vec2.ts";
+import {cam2_compute_proj, cam2_compute_view, cam2_new} from "@cl/cam2.ts";
+import {grid_rdata_new, grid_rend_render} from "@engine/grid_rend.ts";
+import {vec2, vec2_add2, vec2_addmuls2, vec2_clamp2, vec2_clone, vec2_copy, vec2_dir1, vec2_dot, vec2_lerp1, vec2_muls1, vec2_muls2, vec2_sub1} from "@cl/vec2.ts";
 import {rgb} from "@cl/vec3.ts";
 import {box_rdata_build, box_rdata_instance, box_rdata_new, box_rend_build, box_rend_init, box_rend_render} from "@engine/box_rend.ts";
 import {rend_player_init, rend_player_render} from "./rend_player.ts";
-import {min, rad} from "@cl/math.ts";
-import {mtv_aabb2_aabb2, mtv_raabb2_raabb2, overlap_aabb2_aabb2, overlap_aabb2_aabb2_x, overlap_raabb2_raabb2, point_inside_aabb, point_inside_circle, point_inside_raabb} from "@cl/collision2.ts";
+import {deg90odd, min, rad} from "@cl/math.ts";
+import {mtv_raabb_raabb2, overlap_raabb_raabb2, overlap_raabb_raabb2_x} from "@cl/collision2.ts";
 import {body_integrate} from "./phys.ts";
 import {bg_rdata_new, bg_rend_init, bg_rend_render} from "@engine/bg_rend.ts";
-import {box_clone, box_t, BOX_TYPE, level_dedup, level_from_json, level_to_json, OPT_BORDER, OPT_MASK, OPT_TEXTURE, player_new} from "./entities.ts";
-import {point_rdata_build, point_rdata_instance, point_rdata_new, point_rend_build, point_rend_init, point_rend_render} from "@engine/point_rend.ts";
-import {vec4} from "@cl/vec4.ts";
-import {LINE_CAP_TYPE, LINE_JOIN_TYPE, line_rdata_build, line_rdata_instance, line_rdata_new, line_rend_build, line_rend_init, line_rend_render} from "@engine/line_rend.ts";
-import {obb_rdata_build, obb_rdata_instance, obb_rdata_new, obb_rend_build, obb_rend_init, obb_rend_render} from "@engine/obb_rend.ts";
+import {box_t, BOX_TYPE, level_dedup, level_from_json, level_sort, player_new} from "./entities.ts";
+import {editor_camera, editor_camera_controls, editor_flag, editor_kb_key_down, editor_m_button_down, editor_m_button_up, editor_m_move, editor_rend_init, editor_rend_selection, get_editor_flag, switch_editor_flag} from "./editor.ts";
+
+const canvas_el = document.createElement("canvas");
+const gl = gl_init(canvas_el);
+
+const game_camera = cam2_new();
+game_camera.movement_speed = 0.3;
+game_camera.zoom_speed = 0.3;
+
+let camera = game_camera;
+
+let level = level_from_json(LEVELS[0]);
+const player = player_new(vec2_clone(level.start_zone.body.position), vec2(1.0), 10.0);
+const clear_color = rgb(129, 193, 204);
+const grid = grid_rdata_new(vec2(), vec2(1024.0), vec2(1.0), 0.01, rgb(255, 255, 250));
+const background = bg_rdata_new(rgb(30, 116, 214), rgb(124, 198, 228));
+
+const box_rdata = box_rdata_new();
+box_rdata_build(box_rdata, level.boxes.length);
+
+io_init();
+
+const target = vec2();
+editor_rend_init();
 
 const timer_el = document.createElement("div");
 timer_el.className = "timer";
@@ -35,482 +55,30 @@ timer_el.style.pointerEvents = "none";
 timer_el.innerHTML = "0:00.000";
 document.body.append(timer_el);
 
-const canvas_el = document.createElement("canvas");
-const gl = gl_init(canvas_el);
-
-const game_camera = cam2_new();
-game_camera.movement_speed = 0.3;
-game_camera.zoom_speed = 0.3;
-
-const editor_camera = cam2_new();
-editor_camera.movement_speed = 0.3;
-editor_camera.zoom_speed = 0.3;
-
-let camera = game_camera;
-
-const level = level_from_json(LEVELS[1]);
-level_dedup(level);
-level.boxes.sort((a, b) => b.zindex - a.zindex);
-const player = player_new(vec2_clone(level.start_zone.body.position), vec2(1.0), 10.0);
-const clear_color = rgb(129, 193, 204);
-const grid = grid_rdata_new(vec2(), vec2(1024.0), vec2(1.0), 0.01, rgb(255, 255, 250));
-const background = bg_rdata_new(rgb(30, 116, 214), rgb(124, 198, 228));
-
-const box_rdata = box_rdata_new();
-box_rdata_build(box_rdata, level.boxes.length);
-
-io_init();
-
-const target = vec2();
-let is_freecam = false;
-
-// editor
-enum EDITOR_MODE {
-    SELECT,
-    TRANSLATE,
-    SCALE,
-    TRANSFORM
-};
-
-let editor_mode = EDITOR_MODE.SELECT;
-const select_outline = 0.15;
-const select_col = vec4(36, 71, 242, 255);
-const point_rad = 0.15;
-const point_rad_factor = 2.0;
-const point_col = vec4(43, 237, 156, 255);
-const arrow_len = 1.5;
-const arrow_width = 0.15;
-const arrow_width_factor = 4.0;
-const arrow_col = vec4(250, 83, 45, 255);
-const grid_size = vec2(0.5);
-
-let drag_flag = 0;
-const drag_pos = vec2();
-const drag_dir = vec2();
-
-let select_flag = false;
-const select_start = vec2();
-const select_end = vec2();
-const select_pos = vec2();
-const select_size = vec2();
-const bound_min = vec2();
-const bound_max = vec2();
-const bound_pos = vec2();
-const bound_size = vec2();
-let select_boxes: box_t[] = [];
-
-let drag_box_flag = 0;
-let drag_arrow_flag = 0;
-let drag_point_flag = 0
-
-const drag_dir_map = [
-    vec2(0, 0),
-    vec2(-1, 0),
-    vec2(1, 0),
-    vec2(0, -1),
-    vec2(0, 1),
-    vec2(-1, -1),
-    vec2(1, -1),
-    vec2(-1, 1),
-    vec2(1, 1)
-];
-
-let copy_boxes: box_t[] = [];
-
-const mouse_pos = vec2();
-
-function compute_select() {
-    vec2_copy(select_pos, vec2_lerp1(select_start, select_end, 0.5));
-    vec2_copy(select_size, vec2_abs(vec2_sub1(select_end, select_start)));
-}
-
-function find_selected_boxes() {
-    if (vec2_len(select_size) <= 0.5) {
-        const check_boxes = [];
-
-        for (const box of boxes) {
-            const body = box.body;
-
-            if (point_inside_raabb(body.position, body.size, body.rotation, select_pos)) {
-                if (check_boxes.indexOf(box) < 0) {
-                    check_boxes.push(box);
-                }
-            }
-        }
-
-        if (check_boxes.length) {
-            const top_box = check_boxes.sort((a, b) => a.zindex - b.zindex)[0];
-            top_box.option[3] = 1;
-            select_boxes.push(top_box);
-        }
-    } else {
-        for (const box of boxes) {
-            const body = box.body;
-
-            if (overlap_raabb2_raabb2(select_pos, select_size, 0, body.position, body.size, body.rotation)) {
-                if (select_boxes.indexOf(box) < 0) {
-                    box.option[3] = 1;
-                    select_boxes.push(box);
-                }
-            }
-        }
-    }
-}
-
-function clear_selected_boxes() {
-    if (select_boxes.length) {
-        for (const box of select_boxes) {
-            box.option[3] = 0;
-        }
-
-        select_boxes = [];
-    }
-}
-
-function compute_bound() {
-    if (!select_boxes.length) {
-        vec2_zero(bound_pos);
-        vec2_zero(bound_size);
-
-        return;
-    }
-
-    let minx = Infinity;
-    let maxx = -Infinity;
-    let miny = Infinity;
-    let maxy = -Infinity;
-
-    for (const box of select_boxes) {
-        const body = box.body;
-        let sx = body.size[0], sy = body.size[1];
-
-        if ((body.rotation / 90) % 2 != 0) {
-            const temp = sx;
-            sx = sy;
-            sy = temp;
-        }
-
-        minx = Math.min(minx, body.position[0] - sx / 2.0);
-        maxx = Math.max(maxx, body.position[0] + sx / 2.0);
-        miny = Math.min(miny, body.position[1] - sy / 2.0);
-        maxy = Math.max(maxy, body.position[1] + sy / 2.0);
-    }
-
-    vec2_set(bound_min, minx, miny);
-    vec2_set(bound_max, maxx, maxy);
-    vec2_set(bound_pos, (minx + maxx) / 2.0, (miny + maxy) / 2.0);
-    vec2_set(bound_size, maxx - minx, maxy - miny);
-}
-
-io_m_move(function(event: m_event_t): void {
-    if (event.target !== canvas_el) {
-        return;
-    }
-
-    vec2_set(mouse_pos, event.x, event.y);
-
-    if (is_freecam) {
-        const point = cam2_proj_mouse(camera, mouse_pos, canvas_el.width, canvas_el.height);
-
-        if (editor_mode === EDITOR_MODE.SELECT) {
-            if (!select_flag) {
-                vec2_copy(select_start, point);
-            }
-
-            vec2_copy(select_end, point);
-            compute_select();
-        } else if (editor_mode === EDITOR_MODE.TRANSFORM) {
-            if (drag_flag) {
-                const diff = vec2((point[0] - drag_pos[0]) * drag_dir[0], (point[1] - drag_pos[1]) * drag_dir[1]);
-                const diff_abs = vec2_mul1(diff, drag_dir);
-
-                for (const box of select_boxes) {
-                    const body = box.body;
-
-                    if (drag_point_flag) {
-                        if (event.shift) {
-                            if ((body.rotation / 90) % 2 != 0) {
-                                const temp = diff[0];
-                                diff[0] = diff[1];
-                                diff[1] = temp;
-                            }
-
-                            vec2_copy(body.size, vec2_add1(box.drag_size, vec2_muls1(diff, 2.0)));
-                            vec2_snap(body.size, vec2_muls1(grid_size, 2.0), body.size);
-                            vec2_clamp2(body.size, vec2(1.0), vec2(1000.0));
-                        } else {
-                            if ((body.rotation / 90) % 2 != 0) {
-                                const temp = diff[0];
-                                diff[0] = diff[1];
-                                diff[1] = temp;
-                            }
-
-                            vec2_copy(body.size, vec2_add1(box.drag_size, diff));
-                            vec2_snap(body.size, grid_size, body.size);
-                            vec2_clamp2(body.size, vec2(1.0), vec2(1000.0));
-
-                            const test = vec2_sub1(body.size, box.drag_size);
-
-                            if ((body.rotation / 90) % 2 != 0) {
-                                const temp = test[0];
-                                test[0] = test[1];
-                                test[1] = temp;
-                            }
-
-                            const diff_size = vec2_mul2(test, drag_dir);
-
-                            vec2_copy(body.position, vec2_add1(box.drag_pos, vec2_divs1(diff_size, 2.0)));
-                        }
-                    } else if (drag_arrow_flag) {
-                        vec2_copy(body.position, vec2_add1(box.drag_pos, diff_abs));
-                        vec2_snap(body.position, grid_size, body.position);
-                    } else if (drag_box_flag) {
-                        vec2_copy(body.position, vec2_add1(box.drag_pos, diff));
-                        vec2_snap(body.position, grid_size, body.position);
-                    }
-
-                    compute_bound();
-                }
-            }
-        }
-    }
-});
-
-io_m_button_down(function(event: m_event_t): void {
-    if (event.target !== canvas_el) {
-        return;
-    }
-
-    vec2_set(mouse_pos, event.x, event.y);
-
-    if (is_freecam) {
-        const point = cam2_proj_mouse(camera, mouse_pos, canvas_el.width, canvas_el.height);
-
-        if (editor_mode === EDITOR_MODE.SELECT) {
-            select_flag = true;
-            vec2_copy(select_start, point);
-            compute_select();
-
-            if (!event.ctrl) {
-                clear_selected_boxes();
-                compute_bound();
-            }
-
-        } else if (editor_mode === EDITOR_MODE.TRANSFORM) {
-            const x = bound_pos[0];
-            const y = bound_pos[1];
-            const x0 = bound_size[0] / 2.0;
-            const y0 = bound_size[1] / 2.0;
-            const x1 = bound_size[0] / 2.0 + arrow_len / 2.0;
-            const y1 = bound_size[1] / 2.0 + arrow_len / 2.0;
-
-            drag_flag = 0;
-
-            // point
-            drag_point_flag = 0;
-            const drag_point_l_flag = Number(point_inside_circle(vec2(x - x0, y), point_rad * point_rad_factor, point)) * 1;
-            const drag_point_r_flag = Number(point_inside_circle(vec2(x + x0, y), point_rad * point_rad_factor, point)) * 2;
-            const drag_point_d_flag = Number(point_inside_circle(vec2(x, y - y0), point_rad * point_rad_factor, point)) * 3;
-            const drag_point_u_flag = Number(point_inside_circle(vec2(x, y + y0), point_rad * point_rad_factor, point)) * 4;
-            const drag_point_ld_flag = Number(point_inside_circle(vec2(x - x0, y - y0), point_rad * point_rad_factor, point)) * 5;
-            const drag_point_rd_flag = Number(point_inside_circle(vec2(x + x0, y - y0), point_rad * point_rad_factor, point)) * 6;
-            const drag_point_lu_flag = Number(point_inside_circle(vec2(x - x0, y + y0), point_rad * point_rad_factor, point)) * 7;
-            const drag_point_ru_flag = Number(point_inside_circle(vec2(x + x0, y + y0), point_rad * point_rad_factor, point)) * 8;
-            drag_point_flag = drag_point_l_flag + drag_point_r_flag + drag_point_d_flag + drag_point_u_flag + drag_point_ld_flag + drag_point_rd_flag + drag_point_lu_flag + drag_point_ru_flag;
-
-            // arrow
-            drag_arrow_flag = 0;
-
-            if (!drag_point_flag) {
-                const arrow_left_flag = Number(point_inside_aabb(vec2(x - x1, y), vec2(arrow_len, arrow_width * arrow_width_factor), point)) * 1;
-                const arrow_right_flag = Number(point_inside_aabb(vec2(x + x1, y), vec2(arrow_len, arrow_width * arrow_width_factor), point)) * 2;
-                const arrow_down_flag = Number(point_inside_aabb(vec2(x, y - y1), vec2(arrow_width * arrow_width_factor, arrow_len), point)) * 3;
-                const arrow_up_flag = Number(point_inside_aabb(vec2(x, y + y1), vec2(arrow_width * arrow_width_factor, arrow_len), point)) * 4;
-                drag_arrow_flag = arrow_left_flag + arrow_right_flag + arrow_down_flag + arrow_up_flag;
-            }
-
-            // box
-            drag_box_flag = 0;
-
-            if (!drag_point_flag && !drag_arrow_flag) {
-                drag_box_flag = Number(point_inside_aabb(bound_pos, bound_size, point)) * 8;
-            }
-
-            drag_flag = drag_point_flag + drag_arrow_flag + drag_box_flag;
-
-            vec2_copy(drag_pos, point);
-            vec2_copy(drag_dir, drag_dir_map[drag_flag]);
-
-            // store position and size before transforming
-            for (const box of select_boxes) {
-                const body = box.body;
-
-                box.drag_pos = vec2_clone(body.position);
-                box.drag_size = vec2_clone(body.size);
-            }
-        }
-    }
-});
-
-io_m_button_up(function(event: m_event_t): void {
-    if (event.target !== canvas_el) {
-        return;
-    }
-
-    vec2_set(mouse_pos, event.x, event.y);
-
-    if (is_freecam) {
-        if (editor_mode === EDITOR_MODE.SELECT) {
-            select_flag = false;
-            compute_select();
-            find_selected_boxes();
-            compute_bound();
-            load_box_ch();
-        } else if (editor_mode === EDITOR_MODE.TRANSFORM) {
-            drag_flag = 0;
-        }
-    }
-});
-
-function editor_rend_selection(camera: cam2_t): void {
-    if (!is_freecam) {
-        return;
-    }
-
-    compute_bound();
-    obb_rdata_instance(obb_rdata, 0, select_pos, select_size, 0, 0, vec4(select_col[0], select_col[1], select_col[2], 10), select_col, select_outline);
-    obb_rdata_instance(obb_rdata, 1, bound_pos, bound_size, 0, 0, vec4(select_col[0], select_col[1], select_col[2], 10), select_col, select_outline);
-    obb_rend_render(obb_rdata, camera);
-
-    if (select_boxes.length && editor_mode === EDITOR_MODE.TRANSFORM) {
-        const x = bound_pos[0];
-        const y = bound_pos[1];
-        const x0 = bound_size[0] / 2.0;
-        const x1 = bound_size[0] / 2.0 + arrow_len;
-        const y0 = bound_size[1] / 2.0;
-        const y1 = bound_size[1] / 2.0 + arrow_len
-
-        // arrows
-        line_rdata_instance(line_rdata, 0, vec2(x - x0, y), arrow_width, 1, 0, arrow_col);
-        line_rdata_instance(line_rdata, 1, vec2(x - x1, y), arrow_width, 0, 0, arrow_col);
-    
-        line_rdata_instance(line_rdata, 2, vec2(x + x0, y), arrow_width, 1, 0, arrow_col);
-        line_rdata_instance(line_rdata, 3, vec2(x + x1, y), arrow_width, 0, 0, arrow_col);
-    
-        line_rdata_instance(line_rdata, 4, vec2(x, y - y0), arrow_width, 1, 0, arrow_col);
-        line_rdata_instance(line_rdata, 5, vec2(x, y - y1), arrow_width, 0, 0, arrow_col);
-    
-        line_rdata_instance(line_rdata, 6, vec2(x, y + y0), arrow_width, 1, 0, arrow_col);
-        line_rdata_instance(line_rdata, 7, vec2(x, y + y1), arrow_width, 0, 0, arrow_col);
-
-        // points
-        point_rdata_instance(point_rdata, 0, vec2(x - x0, y), point_rad, 0, point_col);
-        point_rdata_instance(point_rdata, 1, vec2(x + x0, y), point_rad, 0, point_col);
-
-        point_rdata_instance(point_rdata, 2, vec2(x, y - y0), point_rad, 0, point_col);
-        point_rdata_instance(point_rdata, 3, vec2(x, y + y0), point_rad, 0, point_col);
-
-        point_rdata_instance(point_rdata, 4, vec2(x - x0, y - y0), point_rad, 0, point_col);
-        point_rdata_instance(point_rdata, 5, vec2(x + x0, y - y0), point_rad, 0, point_col);
-
-        point_rdata_instance(point_rdata, 6, vec2(x + x0, y + y0), point_rad, 0, point_col);
-        point_rdata_instance(point_rdata, 7, vec2(x - x0, y + y0), point_rad, 0, point_col);
-
-        line_rend_render(line_rdata, camera);
-        point_rend_render(point_rdata, camera);
-    }
-}
-
-io_kb_key_down(function(event: kb_event_t): void {
-    if (event.code === "KeyR") {
-        vec2_copy(player_body.position, level.start_zone.body.position);
-    }
-
-    if (event.code === "Backquote") {
-        is_freecam = !is_freecam;
-
-        if (is_freecam) {
-            camera = editor_camera;
-        } else {
-            camera = game_camera;
-        }
-    }
-
-    if (event.code === "Digit1") {
-        editor_mode = EDITOR_MODE.SELECT;
-    }
-
-    if (event.code === "Digit2") {
-        editor_mode = EDITOR_MODE.TRANSFORM;
-        select_flag = false;
-    }
-
-    if (event.code === "KeyC" && event.ctrl && select_boxes.length) {
-        copy_boxes = [];
-
-        for (const box of select_boxes) {
-            copy_boxes.push(box_clone(box));
-        }
-    }
-
-    if (event.code === "KeyV" && event.ctrl && copy_boxes.length) {
-        const free = box_rdata.cap - box_rdata.len;
-
-        if (free < copy_boxes.length) {
-            box_rdata_build(box_rdata, box_rdata.cap + copy_boxes.length);
-            box_rend_build(box_rdata);
-        }
-
-        boxes.push(...copy_boxes);
-        box_rdata.len = boxes.length;
-
-        clear_selected_boxes();
-
-        select_boxes = [...copy_boxes];
-        copy_boxes = [];
-    }
-
-    if (event.code === "Delete") {
-        for (const box of select_boxes) {
-            const index = boxes.indexOf(box);
-
-            if (index > -1) {
-                boxes.splice(index, 1);
-            }
-        }
-
-        box_rdata.len = boxes.length;
-
-        clear_selected_boxes();
-        compute_bound();
-    }
-
-    if (event.code === "KeyS" && event.ctrl) {
-        event.event.preventDefault();
-        console.log(level_to_json(level));
-    }
-});
-
 // physics
-const boxes = level.boxes;
-const static_boxes: box_t[] = [];
-const dynamic_boxes: box_t[] = [];
-const kinematic_boxes: box_t[] = [];
-const player_body = player.body;
+let boxes = level.boxes;
+let static_boxes: box_t[] = [];
+let dynamic_boxes: box_t[] = [];
+let kinematic_boxes: box_t[] = [];
+let player_body = player.body;
 
-for (const box of boxes) {
-    const body = box.body;
-
-    if (body.is_dynamic) {
-        dynamic_boxes.push(box);
-    } else {
-        static_boxes.push(box)
-    }
-
-    if (box.animation) {
-        kinematic_boxes.push(box);
+function categorize_boxes() {
+    for (const box of boxes) {
+        const body = box.body;
+    
+        if (body.is_dynamic) {
+            dynamic_boxes.push(box);
+        } else {
+            static_boxes.push(box)
+        }
+    
+        if (box.animation) {
+            kinematic_boxes.push(box);
+        }
     }
 }
+
+categorize_boxes();
 
 let delta_time = 0;
 let time = 0;
@@ -532,34 +100,77 @@ function format_time(s: number): string {
     );
 }
 
+bg_rend_init();
+box_rend_init();
+box_rend_build(box_rdata);
+rend_player_init();
+
+gl.enable(gl.BLEND)
+gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+gl.enable(gl.CULL_FACE);
+
+// input events
+io_m_move(function(event: m_event_t): void {
+    if (event.target !== canvas_el) {
+        return;
+    }
+
+    editor_m_move(event, camera, canvas_el.width, canvas_el.height);
+});
+
+io_m_button_down(function(event: m_event_t): void {
+    if (event.target !== canvas_el) {
+        return;
+    }
+
+    editor_m_button_down(event, camera, canvas_el.width, canvas_el.height);
+});
+
+io_m_button_up(function(event: m_event_t): void {
+    if (event.target !== canvas_el) {
+        return;
+    }
+
+    editor_m_button_up(event, boxes);
+});
+
+io_kb_key_down(function(event: kb_event_t): void {
+    if (event.code === "Backquote") {
+        switch_editor_flag();
+
+        if (get_editor_flag()) {
+            camera = editor_camera;
+        } else {
+            camera = game_camera;
+        }
+    }
+
+    if (editor_flag) {
+        editor_kb_key_down(event, level, box_rdata);
+
+        return;
+    }
+
+    if (event.code === "KeyR") {
+        vec2_copy(player_body.position, level.start_zone.body.position);
+    }
+});
+
 function update(): void {
+    if (editor_flag) {
+        camera.position = vec2_lerp1(camera.position, target, 0.05);
+    } else {
+        camera.position = vec2_lerp1(camera.position, player_body.position, 0.05);
+    }
+
+    cam2_compute_proj(camera, canvas_el.width, canvas_el.height);
+    cam2_compute_view(camera);
+
     // apply gravity force to player
     vec2_add2(player_body.force, vec2(0.0, -2000.0));
 
-    if (is_freecam) {
-        if (io_key_down("KeyA")) {
-            target[0] -= camera.movement_speed;
-        }
-
-        if (io_key_down("KeyD")) {
-            target[0] += camera.movement_speed;
-        }
-
-        if (io_key_down("KeyS")) {
-            target[1] -= camera.movement_speed;
-        }
-
-        if (io_key_down("KeyW")) {
-            target[1] += camera.movement_speed;
-        }
-
-        if (io_key_down("KeyQ")) {
-            camera.scale = clamp(camera.scale - camera.zoom_speed, 20.0, 100.0);
-        }
-
-        if (io_key_down("KeyE")) {
-            camera.scale = clamp(camera.scale + camera.zoom_speed, 20.0, 100.0);
-        }
+    if (editor_flag) {
+        editor_camera_controls(camera, target);
     } else {
         // apply control forces to player
         const force = player_body.contact ? 3000.0 : 1500.0;
@@ -606,7 +217,7 @@ function update(): void {
     // player motion
     for (const box of boxes) {
         const body = box.body;
-        const result = mtv_raabb2_raabb2(player_body.position, player_body.size, player_body.rotation, body.position, body.size, body.rotation);
+        const result = mtv_raabb_raabb2(player_body.position, player_body.size, deg90odd(player_body.rotation), body.position, body.size, deg90odd(body.rotation));
 
         if (!result) {
             continue;
@@ -654,14 +265,14 @@ function update(): void {
     }
 
     if (is_in_start_zone) {
-        if (!overlap_raabb2_raabb2(player_body.position, player_body.size, 0, level.start_zone.body.position, level.start_zone.body.size, level.start_zone.body.rotation)) {
+        if (!overlap_raabb_raabb2(player_body.position, player_body.size, false, level.start_zone.body.position, level.start_zone.body.size, deg90odd(level.start_zone.body.rotation))) {
             is_in_start_zone = false;
             is_timer_running = true;
         }
     }
 
     if (player_body.contact) {
-        if (!overlap_aabb2_aabb2_x(player_body.position, player_body.size, player_body.contact.position, player_body.contact.size)) {
+        if (!overlap_raabb_raabb2_x(player_body.position, player_body.size, false, player_body.contact.position, player_body.contact.size, deg90odd(player_body.contact.rotation))) {
             player_body.contact = null;
         }
     }
@@ -674,34 +285,17 @@ function update(): void {
     }
 }
 
-bg_rend_init();
-grid_rend_init();
-box_rend_init();
-box_rend_build(box_rdata);
-rend_player_init();
-
-const point_rdata = point_rdata_new();
-point_rdata_build(point_rdata, 8);
-point_rend_init();
-point_rend_build(point_rdata);
-
-const line_rdata = line_rdata_new();
-line_rdata.cap_type = LINE_CAP_TYPE.ARROW;
-line_rdata.join_type = LINE_JOIN_TYPE.NONE;
-line_rdata_build(line_rdata, 8);
-line_rend_init();
-line_rend_build(line_rdata);
-
-const obb_rdata = obb_rdata_new();
-obb_rdata_build(obb_rdata, 2);
-obb_rend_init();
-obb_rend_build(obb_rdata);
-
-gl.enable(gl.BLEND)
-gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-gl.enable(gl.CULL_FACE);
-
 function render(): void {
+    gl.viewport(0, 0, canvas_el.width, canvas_el.height);
+    gl.clearColor(clear_color[0], clear_color[1], clear_color[2], 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    bg_rend_render(background, camera, time);
+
+    if (editor_flag) {
+        grid_rend_render(grid, camera);
+    }
+
     for (let i = 0; i < boxes.length; ++i) {
         const box = boxes[i];
         const body = box.body;
@@ -720,26 +314,8 @@ function render(): void {
         )
     }
 
-    if (is_freecam) {
-        camera.position = vec2_lerp1(camera.position, target, 0.05);
-    } else {
-        camera.position = vec2_lerp1(camera.position, player_body.position, 0.05);
-    }
-
-    cam2_compute_proj(camera, canvas_el.width, canvas_el.height);
-    cam2_compute_view(camera);
-
-    gl.viewport(0, 0, canvas_el.width, canvas_el.height);
-    gl.clearColor(clear_color[0], clear_color[1], clear_color[2], 1.0);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-    bg_rend_render(background, camera, time);
-
-    if (is_freecam) {
-        grid_rend_render(grid, camera);
-    }
-
     box_rend_render(box_rdata, camera);
+
     rend_player_render(player, camera);
 
     editor_rend_selection(camera);
@@ -792,47 +368,67 @@ gui_window_layout(
 
 const level_ch = gui_collapsing_header(left, "Level", false);
 
+const config = {
+    level: 0
+};
+
+gui_select(level_ch, "Levels", gs_object(config, "level"), Object.keys(LEVELS), Object.keys(LEVELS).map(l => parseInt(l)), function(): void {
+    level = level_from_json(LEVELS[config.level]);
+    boxes = level.boxes;
+    box_rdata_build(box_rdata, level.boxes.length);
+    box_rend_build(box_rdata);
+    categorize_boxes();
+});
+
+gui_button(level_ch, "Deduplicate Boxes", function(): void {
+    level_dedup(level);
+});
+
+gui_button(level_ch, "Sort Boxes By Zindex", function(): void {
+    level_sort(level);
+});
+
 const box_ch = gui_collapsing_header(left, "Box", false);
 
-function load_box_ch(): void {
-    box_ch.children = [];
+// function load_box_ch(): void {
+//     box_ch.children = [];
 
-    if (select_boxes.length == 1) {
-        const box = select_boxes[0];
-        const body = box.body;
+//     if (select_boxes.length == 1) {
+//         const box = select_boxes[0];
+//         const body = box.body;
 
-        // box
-        gui_select(box_ch, "Type", gs_object(box, "type"), get_enum_keys(BOX_TYPE), get_enum_values(BOX_TYPE));
-        gui_color_edit(box_ch, "Inner Color", COLOR_MODE.R_0_255, box.inner_color);
-        gui_color_edit(box_ch, "Outer Color", COLOR_MODE.R_0_255, box.outer_color);
-        gui_bool(box_ch, "Is Death", gs_object(box, "is_death"));
-        gui_bool(box_ch, "Is Platform", gs_object(box, "is_platform"));
-        gui_select(box_ch, "Mask", gs_object(box.option, "0"), get_enum_keys(OPT_MASK), get_enum_values(OPT_MASK));
-        gui_select(box_ch, "Border", gs_object(box.option, "1"), get_enum_keys(OPT_BORDER), get_enum_values(OPT_BORDER));
-        gui_select(box_ch, "Texture", gs_object(box.option, "2"), get_enum_keys(OPT_TEXTURE), get_enum_values(OPT_TEXTURE));
-        gui_input_vec(box_ch, "Params", box.params, 0.1, -10000.0, 10000.0, 3);
+//         // box
+//         gui_select(box_ch, "Type", gs_object(box, "type"), get_enum_keys(BOX_TYPE), get_enum_values(BOX_TYPE));
+//         gui_color_edit(box_ch, "Inner Color", COLOR_MODE.R_0_255, box.inner_color);
+//         gui_color_edit(box_ch, "Outer Color", COLOR_MODE.R_0_255, box.outer_color);
+//         gui_bool(box_ch, "Is Death", gs_object(box, "is_death"));
+//         gui_bool(box_ch, "Is Platform", gs_object(box, "is_platform"));
+//         gui_select(box_ch, "Mask", gs_object(box.option, "0"), get_enum_keys(OPT_MASK), get_enum_values(OPT_MASK));
+//         gui_select(box_ch, "Border", gs_object(box.option, "1"), get_enum_keys(OPT_BORDER), get_enum_values(OPT_BORDER));
+//         gui_select(box_ch, "Texture", gs_object(box.option, "2"), get_enum_keys(OPT_TEXTURE), get_enum_values(OPT_TEXTURE));
+//         gui_input_vec(box_ch, "Params", box.params, 0.1, -10000.0, 10000.0, 3);
 
-        // body
-        gui_text(box_ch, "Body");
-        gui_input_vec(box_ch, "Position", body.position, 0.5, -10000.0, 10000.0, 2);
-        gui_input_vec(box_ch, "Size", body.size, 0.5, -10000.0, 10000.0, 2);
-        gui_input_number(box_ch, "Zindex", gs_object(box, "zindex"), 1.0, -100.0, 100.0);
-        gui_slider_number(box_ch, "Rotation", gs_object(body, "rotation"), 90, 0, 270);
-        gui_input_number(box_ch, "Mass", gs_object(body, "mass_inv"), 0.1, 0.0, 1000.0, function(value: number) {
-            body.mass_inv = 1 / value;
-        });
-        gui_input_vec(box_ch, "Force", body.force, 0.1, -10000.0, 10000.0, 2);
-        gui_input_vec(box_ch, "Acceleration", body.acc, 0.1, -10000.0, 10000.0, 2);
-        gui_input_vec(box_ch, "Velocity", body.vel, 0.1, -10000.0, 10000.0, 2);
-        gui_slider_number(box_ch, "Friction", gs_object(body, "friction"), 0.01, 0.0, 1.0);
-        gui_slider_number(box_ch, "Damping", gs_object(body, "damping"), 0.01, 0.0, 1.0);
-        gui_slider_number(box_ch, "Restitution", gs_object(body, "restitution"), 0.01, 0.0, 1.0);
-        gui_bool(box_ch, "Is Dynamic", gs_object(body, "is_dynamic"));
-        gui_bool(box_ch, "Can Collide", gs_object(body, "can_collide"));
-    }
+//         // body
+//         gui_text(box_ch, "Body");
+//         gui_input_vec(box_ch, "Position", body.position, 0.5, -10000.0, 10000.0, 2);
+//         gui_input_vec(box_ch, "Size", body.size, 0.5, -10000.0, 10000.0, 2);
+//         gui_input_number(box_ch, "Zindex", gs_object(box, "zindex"), 1.0, -100.0, 100.0);
+//         gui_slider_number(box_ch, "Rotation", gs_object(body, "rotation"), 90, 0, 270);
+//         gui_input_number(box_ch, "Mass", gs_object(body, "mass_inv"), 0.1, 0.0, 1000.0, function(value: number) {
+//             body.mass_inv = 1 / value;
+//         });
+//         gui_input_vec(box_ch, "Force", body.force, 0.1, -10000.0, 10000.0, 2);
+//         gui_input_vec(box_ch, "Acceleration", body.acc, 0.1, -10000.0, 10000.0, 2);
+//         gui_input_vec(box_ch, "Velocity", body.vel, 0.1, -10000.0, 10000.0, 2);
+//         gui_slider_number(box_ch, "Friction", gs_object(body, "friction"), 0.01, 0.0, 1.0);
+//         gui_slider_number(box_ch, "Damping", gs_object(body, "damping"), 0.01, 0.0, 1.0);
+//         gui_slider_number(box_ch, "Restitution", gs_object(body, "restitution"), 0.01, 0.0, 1.0);
+//         gui_bool(box_ch, "Is Dynamic", gs_object(body, "is_dynamic"));
+//         gui_bool(box_ch, "Can Collide", gs_object(body, "can_collide"));
+//     }
 
-    gui_reload_component(box_ch);
-}
+//     gui_reload_component(box_ch);
+// }
 
 const canvas = gui_canvas(right);
 canvas.canvas_el = canvas_el;
