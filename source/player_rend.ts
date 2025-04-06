@@ -1,6 +1,6 @@
 import {gl, gl_link_program} from "@engine/gl.ts";
 import {cam2_t} from "@cl/cam2.ts";
-import {player_t} from "./entities.ts";
+import {player_t} from "./world.ts";
 
 let program: WebGLProgram;
 let u_projection: WebGLUniformLocation;
@@ -8,7 +8,7 @@ let u_view: WebGLUniformLocation;
 let u_position: WebGLUniformLocation;
 let u_size: WebGLUniformLocation;
 
-export function rend_player_init() {
+export function player_rend_init(): void {
     program = gl_link_program({
         [gl.VERTEX_SHADER]: `#version 300 es
             uniform mat4 u_projection;
@@ -58,11 +58,11 @@ export function rend_player_init() {
     u_size = gl.getUniformLocation(program, "u_size")!;
 }
 
-export function rend_player_render(player: player_t, camera: cam2_t) {
+export function player_rend_render(player: player_t, camera: cam2_t): void {
     gl.useProgram(program);
     gl.uniformMatrix4fv(u_projection, false, camera.projection);
     gl.uniformMatrix4fv(u_view, false, camera.view);
-    gl.uniform2fv(u_position, player.body.position);
-    gl.uniform2fv(u_size, player.body.size);
+    gl.uniform2fv(u_position, player.transform.position);
+    gl.uniform2fv(u_size, player.geometry.size);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
