@@ -5,7 +5,7 @@ import {min, rad} from "@cl/math.ts";
 import {box_t, BOX_TYPE, level_clone, level_new, player_new} from "./world.ts";
 import {vec2, vec2_add2, vec2_copy, vec2_lerp1} from "@cl/vec2.ts";
 import {box_rdata_build, box_rdata_instance, box_rdata_new, box_rend_build, box_rend_init, box_rend_render} from "./box_rend.ts";
-import {clear_select_boxes, editor_camera_controls, editor_gui_window, editor_kb_key_down, editor_m_button_down, editor_m_button_up, editor_m_move, editor_new, editor_rend_grid, editor_rend_init, editor_rend_selection} from "./editor.ts";
+import {editor_camera_controls, editor_clear_select_boxes, editor_gui_window, editor_kb_key_down, editor_m_button_down, editor_m_button_up, editor_m_move, editor_new, editor_rend_grid, editor_rend_init, editor_rend_selection} from "./editor.ts";
 import {io_init, io_kb_key_down, io_key_down, io_m_button_down, io_m_button_up, io_m_move, kb_event_t, m_event_t} from "@engine/io.ts";
 import {bg_rdata_new, bg_rend_init, bg_rend_render} from "@engine/bg_rend.ts";
 import {categorize_boxes, phys_new, update_physics} from "./physics.ts";
@@ -130,7 +130,7 @@ io_m_button_up(function(event: m_event_t): void {
     }
 
     if (editor_flag) {
-        editor_m_button_up(event, editor);
+        editor_m_button_up(event, editor, canvas_el.width, canvas_el.height);
     }
 });
 
@@ -147,7 +147,7 @@ io_kb_key_down(function(event: kb_event_t): void {
             timer_el.style.display = "none";
         } else {
             camera = game_camera;
-            clear_select_boxes(editor);
+            editor_clear_select_boxes(editor);
             game_level = level_clone(editor.level);
             level = game_level;
             player = player_new();
@@ -165,6 +165,13 @@ io_kb_key_down(function(event: kb_event_t): void {
     } else {
         if (event.code === "KeyR") {
             vec2_copy(player.transform.position, level.start_zone.transform.position);
+
+            for (const box of game_phys.kinematic_boxes) {
+                if (box.animation) {
+                    vec2_copy(box.transform.position, box.animation.start);
+                    box.animation.dir = 1;
+                }
+            }
         }
     }
 });

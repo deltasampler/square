@@ -179,10 +179,10 @@ export function update_physics(phys: phys_t, player: player_t, delta_time: numbe
 
         if (progress > total_distance) {
             animation.dir = -1.0;
-            vec2_refl(body.velocity, move_direction, body.velocity);
+            // vec2_refl(body.velocity, move_direction, body.velocity);
         } else if (progress < 0.0) {
             animation.dir = 1.0;
-            vec2_refl(body.velocity, vec2_neg(vec2_clone(move_direction)), body.velocity);
+            // vec2_refl(body.velocity, vec2_neg(vec2_clone(move_direction)), body.velocity);
         }
 
         vec2_add2(body.force, vec2_muls2(move_direction, animation.force * animation.dir));

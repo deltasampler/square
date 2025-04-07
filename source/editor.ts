@@ -1,4 +1,4 @@
-import {clamp, collapsing_header_t, COLOR_MODE, get_enum_keys, get_enum_values, gs_object, gui_bool, gui_button, gui_collapsing_header, gui_color_edit, gui_input_number, gui_input_text, gui_input_vec, gui_reload_component, gui_select, gui_slider_number, gui_text, window_t} from "@gui/gui.ts";
+import {clamp, collapsing_header_t, COLOR_MODE, get_enum_keys, get_enum_values, gs_object, gui_bool, gui_button, gui_collapsing_header, gui_color_edit, gui_input_number, gui_input_text, gui_input_vec, gui_reload_component, gui_select, gui_slider_number, gui_text, gui_update, window_t} from "@gui/gui.ts";
 import {io_key_down, kb_event_t, m_event_t} from "@engine/io.ts";
 import {cam2_new, cam2_proj_mouse, cam2_t} from "@cl/cam2.ts";
 import {vec2, vec2_abs, vec2_add1, vec2_clamp2, vec2_clone, vec2_copy, vec2_divs1, vec2_len, vec2_lerp1, vec2_mul1, vec2_mul2, vec2_muls1, vec2_set, vec2_snap, vec2_sub1, vec2_swap, vec2_zero} from "@cl/vec2.ts";
@@ -49,6 +49,7 @@ export class editor_t {
     level: level_t;
     camera: cam2_t;
     target: vec2_t;
+    box_ch: collapsing_header_t|null;
     on_select: (select_boxes: box_t[]) => void;
     on_copy: (copy_boxes: box_t[]) => void;
     on_level_load: () => void;
@@ -91,6 +92,7 @@ export function editor_new(): editor_t {
     out.camera.movement_speed = 0.3;
     out.camera.zoom_speed = 0.3;
     out.target = vec2();
+    out.box_ch = null;
     out.on_select = function() {}
     out.on_copy = function() {}
     out.on_level_load = function() {}
@@ -139,31 +141,36 @@ export function editor_rend_init() {
     line_rend_build(line_rdata);
 }
 
-function compute_select(editor: editor_t): void {
+export function editor_compute_select(editor: editor_t): void {
     vec2_copy(editor.select_pos, vec2_lerp1(editor.select_start, editor.select_end, 0.5));
     vec2_copy(editor.select_size, vec2_abs(vec2_sub1(editor.select_end, editor.select_start)));
 }
 
-function find_selected_boxes(editor: editor_t): void {
+export function editor_find_top_box(editor: editor_t, point: vec2_t): box_t|null {
+    const level = editor.level;
+    const found_boxes: box_t[] = [];
+
+    for (const box of level.boxes) {
+        const transform = box.transform;
+        const geometry = box.geometry;
+
+        if (point_inside_raabb(transform.position, geometry.size, deg90odd(transform.rotation), point)) {
+            if (found_boxes.indexOf(box) > -1) {
+                continue;
+            }
+
+            found_boxes.push(box);
+        }
+    }
+
+    return found_boxes.sort((a, b) => b.style.zindex - a.style.zindex)[0];
+}
+
+export function editor_find_selected_boxes(editor: editor_t): void {
     const level = editor.level;
 
     if (vec2_len(editor.select_size) < 0.5) {
-        const found_boxes: box_t[] = [];
-
-        for (const box of level.boxes) {
-            const transform = box.transform;
-            const geometry = box.geometry;
-
-            if (point_inside_raabb(transform.position, geometry.size, deg90odd(transform.rotation), editor.select_pos)) {
-                if (found_boxes.indexOf(box) > -1) {
-                    continue;
-                }
-
-                found_boxes.push(box);
-            }
-        }
-
-        const top_box = found_boxes.sort((a, b) => b.style.zindex - a.style.zindex)[0];
+        const top_box = editor_find_top_box(editor, editor.select_pos);
 
         if (top_box && editor.select_boxes.indexOf(top_box) < 0) {
             top_box.style.option[3] = 1;
@@ -188,7 +195,7 @@ function find_selected_boxes(editor: editor_t): void {
     editor.on_select(editor.select_boxes);
 }
 
-export function clear_select_boxes(editor: editor_t): void {
+export function editor_clear_select_boxes(editor: editor_t): void {
     if (editor.select_boxes.length < 1) {
         return;
     }
@@ -200,7 +207,7 @@ export function clear_select_boxes(editor: editor_t): void {
     editor.select_boxes = [];
 }
 
-function compute_bound(editor: editor_t): void {
+export function editor_compute_bound(editor: editor_t): void {
     if (editor.select_boxes.length < 1) {
         vec2_zero(editor.bound_pos);
         vec2_zero(editor.bound_size);
@@ -234,12 +241,103 @@ function compute_bound(editor: editor_t): void {
     vec2_set(editor.bound_size, maxx - minx, maxy - miny);
 }
 
+export function editor_m_button_down(event: m_event_t, editor: editor_t, width: number, height: number): void {
+    vec2_set(editor.mouse_pos, event.x, event.y);
+
+    const point = cam2_proj_mouse(editor.camera, editor.mouse_pos, width, height);
+
+    // init drag
+    if (event.button === 0 && !editor.select_flag && editor.select_boxes.length) {
+        const x = editor.bound_pos[0];
+        const y = editor.bound_pos[1];
+        const x0 = editor.bound_size[0] / 2.0;
+        const y0 = editor.bound_size[1] / 2.0;
+        const x1 = editor.bound_size[0] / 2.0 + editor.arrow_len / 2.0;
+        const y1 = editor.bound_size[1] / 2.0 + editor.arrow_len / 2.0;
+
+        editor.drag_flag = 0;
+
+        // point
+        editor.drag_point_flag = 0;
+        const drag_point_l_flag = Number(point_inside_circle(vec2(x - x0, y), editor.point_radius * editor.point_radius_factor, point)) * 1;
+        const drag_point_r_flag = Number(point_inside_circle(vec2(x + x0, y), editor.point_radius * editor.point_radius_factor, point)) * 2;
+        const drag_point_d_flag = Number(point_inside_circle(vec2(x, y - y0), editor.point_radius * editor.point_radius_factor, point)) * 3;
+        const drag_point_u_flag = Number(point_inside_circle(vec2(x, y + y0), editor.point_radius * editor.point_radius_factor, point)) * 4;
+        const drag_point_ld_flag = Number(point_inside_circle(vec2(x - x0, y - y0), editor.point_radius * editor.point_radius_factor, point)) * 5;
+        const drag_point_rd_flag = Number(point_inside_circle(vec2(x + x0, y - y0), editor.point_radius * editor.point_radius_factor, point)) * 6;
+        const drag_point_lu_flag = Number(point_inside_circle(vec2(x - x0, y + y0), editor.point_radius * editor.point_radius_factor, point)) * 7;
+        const drag_point_ru_flag = Number(point_inside_circle(vec2(x + x0, y + y0), editor.point_radius * editor.point_radius_factor, point)) * 8;
+        editor.drag_point_flag = drag_point_l_flag + drag_point_r_flag + drag_point_d_flag + drag_point_u_flag + drag_point_ld_flag + drag_point_rd_flag + drag_point_lu_flag + drag_point_ru_flag;
+
+        // arrow
+        editor.drag_arrow_flag = 0;
+
+        if (!editor.drag_point_flag) {
+            const arrow_left_flag = Number(point_inside_aabb(vec2(x - x1, y), vec2(editor.arrow_len, editor.arrow_width * editor.arrow_width_factor), point)) * 1;
+            const arrow_right_flag = Number(point_inside_aabb(vec2(x + x1, y), vec2(editor.arrow_len, editor.arrow_width * editor.arrow_width_factor), point)) * 2;
+            const arrow_down_flag = Number(point_inside_aabb(vec2(x, y - y1), vec2(editor.arrow_width * editor.arrow_width_factor, editor.arrow_len), point)) * 3;
+            const arrow_up_flag = Number(point_inside_aabb(vec2(x, y + y1), vec2(editor.arrow_width * editor.arrow_width_factor, editor.arrow_len), point)) * 4;
+            editor.drag_arrow_flag = arrow_left_flag + arrow_right_flag + arrow_down_flag + arrow_up_flag;
+        }
+
+        // box
+        editor.drag_box_flag = 0;
+
+        if (!editor.drag_point_flag && !editor.drag_arrow_flag) {
+            const is_inside_bound = Number(point_inside_aabb(editor.bound_pos, editor.bound_size, point));
+            let is_inside_child = false;
+
+            const top_box = editor_find_top_box(editor, point);
+
+            if (is_inside_bound && top_box && editor.select_boxes.indexOf(top_box) > -1) {
+                is_inside_child = true;
+            }
+
+            editor.drag_box_flag = Number(is_inside_child) * 8;
+        }
+
+        editor.drag_flag = editor.drag_point_flag + editor.drag_arrow_flag + editor.drag_box_flag;
+
+        vec2_copy(editor.drag_pos, point);
+        vec2_copy(editor.drag_dir, drag_dir_map[editor.drag_flag]);
+
+        // store position and size before transforming
+        for (const box of editor.select_boxes) {
+            const transform = box.transform;
+            const geometry = box.geometry;
+
+            box.drag_position = vec2_clone(transform.position);
+            box.drag_size = vec2_clone(geometry.size);
+        }
+    }
+
+    // init select
+    if (event.button === 0 && !editor.drag_flag) {
+        editor.select_flag = true;
+        vec2_copy(editor.select_start, point);
+        vec2_copy(editor.select_end, point);
+        editor_compute_select(editor);
+
+        if (!event.ctrl) {
+            editor_clear_select_boxes(editor);
+            editor_compute_bound(editor);
+        }
+    }
+}
+
 export function editor_m_move(event: m_event_t, editor: editor_t, width: number, height: number): void {
     vec2_set(editor.mouse_pos, event.x, event.y);
 
     const point = cam2_proj_mouse(editor.camera, editor.mouse_pos, width, height);
 
-    if (editor.drag_flag) {
+    // process select
+    if (event.button === 0 && editor.select_flag) {
+        vec2_copy(editor.select_end, point);
+        editor_compute_select(editor);
+    }
+
+    // process drag
+    if (event.button === 0 && editor.drag_flag) {
         const diff = vec2((point[0] - editor.drag_pos[0]) * editor.drag_dir[0], (point[1] - editor.drag_pos[1]) * editor.drag_dir[1]);
         const diff_abs = vec2_mul1(diff, editor.drag_dir);
 
@@ -283,100 +381,31 @@ export function editor_m_move(event: m_event_t, editor: editor_t, width: number,
                 vec2_snap(transform.position, editor.grid_size, transform.position);
             }
 
-            compute_bound(editor);
+            editor_compute_bound(editor);
+            editor_update_box_ch(editor.box_ch);
         }
-    } else {
-        if (!editor.select_flag) {
-            vec2_copy(editor.select_start, point);
-        }
-
-        vec2_copy(editor.select_end, point);
-        compute_select(editor);
     }
 };
 
-export function editor_m_button_down(event: m_event_t, editor: editor_t, width: number, height: number): void {
+export function editor_m_button_up(event: m_event_t, editor: editor_t, width: number, height: number): void {
     vec2_set(editor.mouse_pos, event.x, event.y);
 
     const point = cam2_proj_mouse(editor.camera, editor.mouse_pos, width, height);
 
-    if (!editor.select_flag && editor.select_boxes.length) {
-        const x = editor.bound_pos[0];
-        const y = editor.bound_pos[1];
-        const x0 = editor.bound_size[0] / 2.0;
-        const y0 = editor.bound_size[1] / 2.0;
-        const x1 = editor.bound_size[0] / 2.0 + editor.arrow_len / 2.0;
-        const y1 = editor.bound_size[1] / 2.0 + editor.arrow_len / 2.0;
-
-        editor.drag_flag = 0;
-
-        // point
-        editor.drag_point_flag = 0;
-        const drag_point_l_flag = Number(point_inside_circle(vec2(x - x0, y), editor.point_radius * editor.point_radius_factor, point)) * 1;
-        const drag_point_r_flag = Number(point_inside_circle(vec2(x + x0, y), editor.point_radius * editor.point_radius_factor, point)) * 2;
-        const drag_point_d_flag = Number(point_inside_circle(vec2(x, y - y0), editor.point_radius * editor.point_radius_factor, point)) * 3;
-        const drag_point_u_flag = Number(point_inside_circle(vec2(x, y + y0), editor.point_radius * editor.point_radius_factor, point)) * 4;
-        const drag_point_ld_flag = Number(point_inside_circle(vec2(x - x0, y - y0), editor.point_radius * editor.point_radius_factor, point)) * 5;
-        const drag_point_rd_flag = Number(point_inside_circle(vec2(x + x0, y - y0), editor.point_radius * editor.point_radius_factor, point)) * 6;
-        const drag_point_lu_flag = Number(point_inside_circle(vec2(x - x0, y + y0), editor.point_radius * editor.point_radius_factor, point)) * 7;
-        const drag_point_ru_flag = Number(point_inside_circle(vec2(x + x0, y + y0), editor.point_radius * editor.point_radius_factor, point)) * 8;
-        editor.drag_point_flag = drag_point_l_flag + drag_point_r_flag + drag_point_d_flag + drag_point_u_flag + drag_point_ld_flag + drag_point_rd_flag + drag_point_lu_flag + drag_point_ru_flag;
-
-        // arrow
-        editor.drag_arrow_flag = 0;
-
-        if (!editor.drag_point_flag) {
-            const arrow_left_flag = Number(point_inside_aabb(vec2(x - x1, y), vec2(editor.arrow_len, editor.arrow_width * editor.arrow_width_factor), point)) * 1;
-            const arrow_right_flag = Number(point_inside_aabb(vec2(x + x1, y), vec2(editor.arrow_len, editor.arrow_width * editor.arrow_width_factor), point)) * 2;
-            const arrow_down_flag = Number(point_inside_aabb(vec2(x, y - y1), vec2(editor.arrow_width * editor.arrow_width_factor, editor.arrow_len), point)) * 3;
-            const arrow_up_flag = Number(point_inside_aabb(vec2(x, y + y1), vec2(editor.arrow_width * editor.arrow_width_factor, editor.arrow_len), point)) * 4;
-            editor.drag_arrow_flag = arrow_left_flag + arrow_right_flag + arrow_down_flag + arrow_up_flag;
-        }
-
-        // box
-        editor.drag_box_flag = 0;
-
-        if (!editor.drag_point_flag && !editor.drag_arrow_flag) {
-            editor.drag_box_flag = Number(point_inside_aabb(editor.bound_pos, editor.bound_size, point)) * 8;
-        }
-
-        editor.drag_flag = editor.drag_point_flag + editor.drag_arrow_flag + editor.drag_box_flag;
-
-        vec2_copy(editor.drag_pos, point);
-        vec2_copy(editor.drag_dir, drag_dir_map[editor.drag_flag]);
-
-        // store position and size before transforming
-        for (const box of editor.select_boxes) {
-            const transform = box.transform;
-            const geometry = box.geometry;
-
-            box.drag_position = vec2_clone(transform.position);
-            box.drag_size = vec2_clone(geometry.size);
-        }
-    }
-
-    if (!editor.drag_flag) {
-        editor.select_flag = true;
-        vec2_copy(editor.select_start, point);
-        compute_select(editor);
-
-        if (!event.ctrl) {
-            clear_select_boxes(editor);
-            compute_bound(editor);
-        }
-    }
-}
-
-export function editor_m_button_up(event: m_event_t, editor: editor_t): void {
-    vec2_set(editor.mouse_pos, event.x, event.y);
-
-    if (editor.drag_flag) {
-        editor.drag_flag = 0;
-    } else {
+    // reset select
+    if (event.button === 0 && editor.select_flag) {
         editor.select_flag = false;
-        compute_select(editor);
-        find_selected_boxes(editor);
-        compute_bound(editor);
+        editor_find_selected_boxes(editor);
+        editor_compute_bound(editor);
+
+        vec2_copy(editor.select_start, point);
+        vec2_copy(editor.select_end, point);
+        editor_compute_select(editor);
+    }
+
+    // reset drag
+    if (event.button === 0 && editor.drag_flag) {
+        editor.drag_flag = 0;
     }
 }
 
@@ -391,6 +420,7 @@ export function editor_kb_key_down(event: kb_event_t, editor: editor_t): void {
             const transform = box.transform;
 
             transform.rotation = wrap(transform.rotation + (event.shift ? 90.0 : -90.0), 360.0);
+            editor_update_box_ch(editor.box_ch);
         }
     }
 
@@ -408,12 +438,12 @@ export function editor_kb_key_down(event: kb_event_t, editor: editor_t): void {
 
     if (event.code === "KeyV" && event.ctrl && editor.copy_boxes.length) {
         if (level.boxes.length + editor.copy_boxes.length > BOX_LIMIT) {
-            clear_select_boxes(editor);
+            editor_clear_select_boxes(editor);
 
             return;
         }
 
-        clear_select_boxes(editor);
+        editor_clear_select_boxes(editor);
         level.boxes.push(...editor.copy_boxes);
         editor.select_boxes = [...editor.copy_boxes];
         editor.copy_boxes = [];
@@ -433,8 +463,8 @@ export function editor_kb_key_down(event: kb_event_t, editor: editor_t): void {
             }
         }
 
-        clear_select_boxes(editor);
-        compute_bound(editor);
+        editor_clear_select_boxes(editor);
+        editor_compute_bound(editor);
     }
 
     if (event.code === "KeyS" && event.ctrl) {
@@ -477,10 +507,18 @@ export function editor_rend_grid(editor: editor_t): void {
     grid_rend_render(grid_rdata, editor.camera);
 }
 
+export function editor_update_box_ch(box_ch: collapsing_header_t|null): void {
+    if (!box_ch) {
+        return;
+    }
+
+    gui_update(box_ch);
+}
+
 export function editor_rend_selection(editor: editor_t): void {
     const camera = editor.camera;
 
-    compute_bound(editor);
+    editor_compute_bound(editor);
     obb_rdata_instance(obb_rdata, 0, editor.select_pos, editor.select_size, 0, 0, vec4(editor.select_color[0], editor.select_color[1], editor.select_color[2], 10), editor.select_color, editor.select_width);
     obb_rdata_instance(obb_rdata, 1, editor.bound_pos, editor.bound_size, 0, 0, vec4(editor.select_color[0], editor.select_color[1], editor.select_color[2], 10), editor.select_color, editor.select_width);
     obb_rend_render(obb_rdata, camera);
@@ -524,7 +562,7 @@ export function editor_rend_selection(editor: editor_t): void {
     }
 }
 
-export function load_box_ch(box_ch: collapsing_header_t, select_boxes: box_t[]): void {
+export function editor_load_box_ch(box_ch: collapsing_header_t, select_boxes: box_t[]): void {
     box_ch.children = [];
 
     if (select_boxes.length === 1) {
@@ -597,7 +635,11 @@ export function editor_save_level(level: level_t) {
     store_set_level(level_serialize(level));
 }
 
-export function load_level_ch(editor: editor_t, level_ch: collapsing_header_t): void {
+export function editor_load_level_ch(editor: editor_t, level_ch: collapsing_header_t|null): void {
+    if (!level_ch) {
+        return;
+    }
+
     level_ch.children = [];
     gui_input_text(level_ch, "Name", gs_object(editor.level, "name"));
     gui_color_edit(level_ch, "Background Lower Color", COLOR_MODE.R_0_1, editor.level.bg_lower_color);
@@ -667,19 +709,20 @@ export function editor_gui_window(editor: editor_t, window: window_t): void {
     });
 
     const level_ch = gui_collapsing_header(window, "Level", false);
-    load_level_ch(editor, level_ch);
+    editor_load_level_ch(editor, level_ch);
 
     const box_ch = gui_collapsing_header(window, "Box", false);
+    editor.box_ch = box_ch;
 
     editor.on_select = function(select_boxes: box_t[]): void {
-        load_box_ch(box_ch, select_boxes);
+        editor_load_box_ch(box_ch, select_boxes);
     }
 
     editor.on_copy = function(copy_boxes: box_t[]): void {
-        load_box_ch(box_ch, copy_boxes);
+        editor_load_box_ch(box_ch, copy_boxes);
     }
 
     editor.on_level_load = function() {
-        load_level_ch(editor, level_ch);
+        editor_load_level_ch(editor, level_ch);
     }
 }
