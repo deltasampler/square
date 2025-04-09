@@ -1,9 +1,9 @@
 import {gui_window, gui_canvas, gui_render, gui_window_grid, unit, UT, gui_window_layout} from "@gui/gui.ts";
 import {gl_init} from "@engine/gl.ts";
-import {cam2_compute_proj, cam2_compute_view, cam2_new} from "@cl/cam2.ts";
+import {cam2_compute_proj, cam2_compute_view, cam2_new, cam2_proj_mouse} from "@cl/cam2.ts";
 import {min, rad} from "@cl/math.ts";
-import {box_t, BOX_TYPE, level_clone, level_new, player_new} from "./world.ts";
-import {vec2, vec2_add2, vec2_copy, vec2_lerp1} from "@cl/vec2.ts";
+import {box_t, BOX_TYPE, level_clone, level_new, player_new, projectile_new} from "./world.ts";
+import {vec2, vec2_add2, vec2_copy, vec2_dir, vec2_dir1, vec2_lerp1, vec2_muls1} from "@cl/vec2.ts";
 import {box_rdata_build, box_rdata_instance, box_rdata_new, box_rend_build, box_rend_init, box_rend_render} from "./box_rend.ts";
 import {editor_camera_controls, editor_clear_select_boxes, editor_gui_window, editor_kb_key_down, editor_m_button_down, editor_m_button_up, editor_m_move, editor_new, editor_rend_grid, editor_rend_init, editor_rend_selection} from "./editor.ts";
 import {io_init, io_kb_key_down, io_key_down, io_m_button_down, io_m_button_up, io_m_move, kb_event_t, m_event_t} from "@engine/io.ts";
@@ -11,9 +11,10 @@ import {bg_rdata_new, bg_rend_init, bg_rend_render} from "@engine/bg_rend.ts";
 import {categorize_boxes, phys_new, update_physics} from "./physics.ts";
 import {player_rend_init, player_rend_render} from "./player_rend.ts";
 import {create_timer_el, format_time} from "./timer.ts";
-import {BOX_LIMIT, WORLD_SIZE} from "./config.ts";
+import {BOX_LIMIT, PROJECTILE_LIMIT, WORLD_SIZE} from "./config.ts";
 import {vec3_copy} from "@cl/vec3.ts";
 import {store_default_levels} from "./storage.ts";
+import {circle_rdata_build, circle_rdata_instance, circle_rdata_new, circle_rdata_t, circle_rend_build, circle_rend_init, circle_rend_render} from "@engine/circle_rend.ts";
 
 store_default_levels();
 
@@ -86,14 +87,19 @@ let player = player_new();
 // init renderers
 const bg_rdata = bg_rdata_new(editor.level.bg_lower_color, editor.level.bg_upper_color);
 
+bg_rend_init();
+
 const box_rdata = box_rdata_new();
 box_rdata_build(box_rdata, BOX_LIMIT);
 box_rdata.len = 0;
-
-bg_rend_init();
-
 box_rend_init();
 box_rend_build(box_rdata);
+
+const circle_rdata = circle_rdata_new();
+circle_rdata_build(circle_rdata, PROJECTILE_LIMIT);
+circle_rdata.len = 0;
+circle_rend_init();
+circle_rend_build(circle_rdata);
 
 player_rend_init();
 
@@ -121,6 +127,22 @@ io_m_button_down(function(event: m_event_t): void {
 
     if (editor_flag) {
         editor_m_button_down(event, editor, canvas_el.width, canvas_el.height);
+    } else {
+        const mouse = vec2(event.x, event.y);
+        const point = cam2_proj_mouse(camera, mouse, canvas_el.width, canvas_el.height);
+        const dir = vec2_dir1(point, player.transform.position);
+
+        const projectile = projectile_new();
+        vec2_copy(projectile.transform.position, player.transform.position);
+        vec2_copy(projectile.body.velocity, vec2_muls1(dir, 100.0));
+        projectile.geometry.radius = 0.5;
+        projectile.style.params[0] = 0.2;
+        projectile.body.damping = 1.0;
+
+        if (game_phys.projectiles.length < PROJECTILE_LIMIT) {
+            game_phys.projectiles.push(projectile);
+            console.log(projectile);
+        }
     }
 });
 
@@ -236,6 +258,21 @@ function render(): void {
         );
     }
 
+    for (let i = 0; i < game_phys.projectiles.length; i += 1) {
+        const projectile = game_phys.projectiles[i];
+
+        circle_rdata_instance(
+            circle_rdata,
+            i,
+            projectile.transform.position,
+            projectile.geometry.radius,
+            projectile.style.zindex,
+            projectile.style.inner_color,
+            projectile.style.outer_color,
+            projectile.style.params[0]
+        );
+    }
+
     vec3_copy(bg_rdata.lower_color, level.bg_lower_color);
     vec3_copy(bg_rdata.upper_color, level.bg_upper_color);
 
@@ -247,6 +284,9 @@ function render(): void {
 
     box_rdata.len = boxes.length;
     box_rend_render(box_rdata, camera);
+
+    circle_rdata.len = game_phys.projectiles.length;
+    circle_rend_render(circle_rdata, camera);
 
     if (editor_flag) {
         editor_rend_selection(editor);

@@ -97,7 +97,7 @@ export function editor_new(): editor_t {
     out.on_copy = function() {}
     out.on_level_load = function() {}
 
-    const level = store_get_level("Level 3");
+    const level = store_get_level("Level 1");
 
     if (level) {
         level_deserialize(out.level, level);

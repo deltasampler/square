@@ -409,7 +409,10 @@ export enum BOX_PRESET {
     SPIKES,
     MOVER,
     START_ZONE,
-    END_ZONE
+    END_ZONE,
+    EFFECT,
+    PORTAL,
+    SHOOTER
 };
 
 export function box_ground(position: vec2_t, size: vec2_t): box_t {
