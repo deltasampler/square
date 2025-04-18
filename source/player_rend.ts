@@ -1,5 +1,5 @@
 import {gl, gl_link_program} from "@engine/gl.ts";
-import {cam2_t} from "@cl/cam2.ts";
+import {cam2_t} from "@cl/camera/cam2.ts";
 import {player_t} from "./world.ts";
 
 let program: WebGLProgram;

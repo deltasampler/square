@@ -1,6 +1,6 @@
-import {vec2, vec2_add2, vec2_addmuls2, vec2_clamp2, vec2_clone, vec2_copy, vec2_dir1, vec2_dot, vec2_muls1, vec2_muls2, vec2_neg, vec2_refl, vec2_refl1, vec2_sub1, vec2_zero} from "@cl/vec2.ts";
-import {deg90odd, pow} from "@cl/math.ts";
-import {mtv_raabb_raabb2, overlap_raabb_raabb2_x} from "@cl/collision2.ts";
+import {vec2, vec2_add2, vec2_addmuls2, vec2_clamp2, vec2_copy, vec2_dir1, vec2_dot, vec2_muls1, vec2_muls2, vec2_sub1, vec2_zero} from "@cl/math/vec2.ts";
+import {deg90odd, pow} from "@cl/math/math.ts";
+import {mtv_raabb_raabb2, overlap_raabb_raabb2_x} from "@cl/collision/collision2.ts";
 import {box_t, body_t, player_t, transform_t, projectile_t} from "./world.ts";
 import {VEL_LIMIT} from "./config.ts";
 

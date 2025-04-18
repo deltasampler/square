@@ -1,9 +1,9 @@
 import {gui_window, gui_canvas, gui_render, gui_window_grid, unit, UT, gui_window_layout} from "@gui/gui.ts";
 import {gl_init} from "@engine/gl.ts";
-import {cam2_compute_proj, cam2_compute_view, cam2_new, cam2_proj_mouse} from "@cl/cam2.ts";
-import {min, rad} from "@cl/math.ts";
+import {cam2_compute_proj, cam2_compute_view, cam2_new, cam2_proj_mouse} from "@cl/camera/cam2.ts";
+import {min, rad} from "@cl/math/math.ts";
 import {box_t, BOX_TYPE, level_clone, level_new, player_new, projectile_new} from "./world.ts";
-import {vec2, vec2_add2, vec2_copy, vec2_dir, vec2_dir1, vec2_lerp1, vec2_muls1} from "@cl/vec2.ts";
+import {vec2, vec2_add2, vec2_copy, vec2_dir1, vec2_lerp1, vec2_muls1} from "@cl/math/vec2.ts";
 import {box_rdata_build, box_rdata_instance, box_rdata_new, box_rend_build, box_rend_init, box_rend_render} from "./box_rend.ts";
 import {editor_camera_controls, editor_clear_select_boxes, editor_gui_window, editor_kb_key_down, editor_m_button_down, editor_m_button_up, editor_m_move, editor_new, editor_rend_grid, editor_rend_init, editor_rend_selection} from "./editor.ts";
 import {io_init, io_kb_key_down, io_key_down, io_m_button_down, io_m_button_up, io_m_move, kb_event_t, m_event_t} from "@engine/io.ts";
@@ -12,9 +12,9 @@ import {categorize_boxes, phys_new, update_physics} from "./physics.ts";
 import {player_rend_init, player_rend_render} from "./player_rend.ts";
 import {create_timer_el, format_time} from "./timer.ts";
 import {BOX_LIMIT, PROJECTILE_LIMIT, WORLD_SIZE} from "./config.ts";
-import {vec3_copy} from "@cl/vec3.ts";
+import {vec3_copy} from "@cl/math/vec3.ts";
 import {store_default_levels} from "./storage.ts";
-import {circle_rdata_build, circle_rdata_instance, circle_rdata_new, circle_rdata_t, circle_rend_build, circle_rend_init, circle_rend_render} from "@engine/circle_rend.ts";
+import {circle_rdata_build, circle_rdata_instance, circle_rdata_new, circle_rend_build, circle_rend_init, circle_rend_render} from "@engine/circle_rend.ts";
 
 store_default_levels();
 

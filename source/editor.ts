@@ -1,17 +1,16 @@
 import {clamp, collapsing_header_t, COLOR_MODE, get_enum_keys, get_enum_values, gs_object, gui_bool, gui_button, gui_collapsing_header, gui_color_edit, gui_input_number, gui_input_text, gui_input_vec, gui_reload_component, gui_select, gui_slider_number, gui_text, gui_update, window_t} from "@gui/gui.ts";
 import {io_key_down, kb_event_t, m_event_t} from "@engine/io.ts";
-import {cam2_new, cam2_proj_mouse, cam2_t} from "@cl/cam2.ts";
-import {vec2, vec2_abs, vec2_add1, vec2_clamp2, vec2_clone, vec2_copy, vec2_divs1, vec2_len, vec2_lerp1, vec2_mul1, vec2_mul2, vec2_muls1, vec2_set, vec2_snap, vec2_sub1, vec2_swap, vec2_zero} from "@cl/vec2.ts";
-import {deg90odd, wrap} from "@cl/math.ts";
-import {overlap_raabb_raabb2, point_inside_aabb, point_inside_circle, point_inside_raabb} from "@cl/collision2.ts";
+import {cam2_new, cam2_proj_mouse, cam2_t} from "@cl/camera/cam2.ts";
+import {vec2, vec2_abs, vec2_add1, vec2_clamp2, vec2_clone, vec2_copy, vec2_divs1, vec2_len, vec2_lerp1, vec2_mul1, vec2_mul2, vec2_muls1, vec2_set, vec2_snap, vec2_sub1, vec2_swap, vec2_t, vec2_zero} from "@cl/math/vec2.ts";
+import {deg90odd, wrap} from "@cl/math/math.ts";
+import {overlap_raabb_raabb2, point_inside_aabb, point_inside_circle, point_inside_raabb} from "@cl/collision/collision2.ts";
 import {box_brick, box_clone, box_end_zone, box_ground, box_mover, BOX_PRESET, box_spikes, box_start_zone, box_t, BOX_TYPE, GEOMETRY_TYPE, level_add_box, level_deserialize, level_new, level_serialize, level_t, OPT_BORDER, OPT_MASK, OPT_TEXTURE} from "./world.ts";
 import {point_rdata_instance, point_rend_render, point_rdata_build, point_rdata_new, point_rend_init, point_rend_build} from "@engine/point_rend.ts";
-import {vec4} from "@cl/vec4.ts";
+import {vec4, vec4_t} from "@cl/math/vec4.ts";
 import {line_rdata_instance, line_rend_render, line_rdata_new, line_rdata_build, line_rend_init, line_rend_build, LINE_CAP_TYPE, LINE_JOIN_TYPE} from "@engine/line_rend.ts";
 import {obb_rdata_instance, obb_rend_render, obb_rdata_build, obb_rend_init, obb_rend_build, obb_rdata_new} from "@engine/obb_rend.ts";
-import {vec2_t, vec4_t} from "@cl/type.ts";
 import {grid_rdata_new, grid_rend_init, grid_rend_render} from "@engine/grid_rend.ts";
-import {rgb} from "@cl/vec3.ts";
+import {rgb} from "@cl/math/vec3.ts";
 import {store_add_level, store_get_level, store_get_levels, store_set_level} from "./storage.ts";
 import {BOX_LIMIT} from "./config.ts";
 

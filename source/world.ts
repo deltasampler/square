@@ -1,7 +1,6 @@
-import {vec2_t, vec3_t, vec4_t} from "@cl/type.ts";
-import {vec2, vec2_clone, vec2_copy} from "@cl/vec2.ts";
-import {rgb, vec3, vec3_clone} from "@cl/vec3.ts";
-import {vec4, vec4_clone, vec4_set} from "@cl/vec4.ts";
+import {vec2, vec2_clone, vec2_copy, vec2_t} from "@cl/math/vec2.ts";
+import {rgb, vec3, vec3_clone, vec3_t} from "@cl/math/vec3.ts";
+import {vec4, vec4_clone, vec4_set, vec4_t} from "@cl/math/vec4.ts";
 
 // vector serialization
 export function vec_serialize(vec: Float32Array): number[] {
