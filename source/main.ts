@@ -3,7 +3,7 @@ import {gl_init} from "@engine/gl.ts";
 import {cam2_compute_proj, cam2_compute_view, cam2_new, cam2_proj_mouse} from "@cl/camera/cam2.ts";
 import {min, rad} from "@cl/math/math.ts";
 import {box_t, BOX_TYPE, level_clone, level_new, player_new, projectile_new} from "./world.ts";
-import {vec2, vec2_add2, vec2_copy, vec2_dir1, vec2_lerp1, vec2_muls1} from "@cl/math/vec2.ts";
+import {vec2, vec2_copy, vec2n_dir, vec2n_lerp, vec2n_muls, vec2m_add} from "@cl/math/vec2.ts";
 import {box_rdata_build, box_rdata_instance, box_rdata_new, box_rend_build, box_rend_init, box_rend_render} from "./box_rend.ts";
 import {editor_camera_controls, editor_clear_select_boxes, editor_gui_window, editor_kb_key_down, editor_m_button_down, editor_m_button_up, editor_m_move, editor_new, editor_rend_grid, editor_rend_init, editor_rend_selection} from "./editor.ts";
 import {io_init, io_kb_key_down, io_key_down, io_m_button_down, io_m_button_up, io_m_move, kb_event_t, m_event_t} from "@engine/io.ts";
@@ -130,11 +130,11 @@ io_m_button_down(function(event: m_event_t): void {
     } else {
         const mouse = vec2(event.x, event.y);
         const point = cam2_proj_mouse(camera, mouse, canvas_el.width, canvas_el.height);
-        const dir = vec2_dir1(point, player.transform.position);
+        const dir = vec2n_dir(point, player.transform.position);
 
         const projectile = projectile_new();
         vec2_copy(projectile.transform.position, player.transform.position);
-        vec2_copy(projectile.body.velocity, vec2_muls1(dir, 100.0));
+        vec2_copy(projectile.body.velocity, vec2n_muls(dir, 100.0));
         projectile.geometry.radius = 0.5;
         projectile.style.params[0] = 0.2;
         projectile.body.damping = 1.0;
@@ -202,7 +202,7 @@ function update(): void {
     if (editor_flag) {
         editor_camera_controls(editor);
     } else {
-        camera.position = vec2_lerp1(camera.position, player.transform.position, 0.05);
+        camera.position = vec2n_lerp(camera.position, player.transform.position, 0.05);
     }
 
     cam2_compute_proj(camera, canvas_el.width, canvas_el.height);
@@ -213,11 +213,11 @@ function update(): void {
         const force = player.contact ? 3000.0 : 1500.0;
 
         if (io_key_down("KeyA")) {
-            vec2_add2(player.body.force, vec2(-force, 0.0));
+            vec2m_add(player.body.force, vec2(-force, 0.0));
         }
 
         if (io_key_down("KeyD")) {
-            vec2_add2(player.body.force, vec2(force, 0.0));
+            vec2m_add(player.body.force, vec2(force, 0.0));
         }
 
         // apply jump force to player

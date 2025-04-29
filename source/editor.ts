@@ -1,7 +1,7 @@
 import {clamp, collapsing_header_t, COLOR_MODE, get_enum_keys, get_enum_values, gs_object, gui_bool, gui_button, gui_collapsing_header, gui_color_edit, gui_input_number, gui_input_text, gui_input_vec, gui_reload_component, gui_select, gui_slider_number, gui_text, gui_update, window_t} from "@gui/gui.ts";
 import {io_key_down, kb_event_t, m_event_t} from "@engine/io.ts";
 import {cam2_new, cam2_proj_mouse, cam2_t} from "@cl/camera/cam2.ts";
-import {vec2, vec2_abs, vec2_add1, vec2_clamp2, vec2_clone, vec2_copy, vec2_divs1, vec2_len, vec2_lerp1, vec2_mul1, vec2_mul2, vec2_muls1, vec2_set, vec2_snap, vec2_sub1, vec2_swap, vec2_t, vec2_zero} from "@cl/math/vec2.ts";
+import {vec2, vec2_copy, vec2_len, vec2n_lerp, vec2_set, vec2_t, vec2_zero, vec2n_abs, vec2n_add, vec2n_copy, vec2n_divs, vec2n_mul, vec2n_muls, vec2n_sub} from "@cl/math/vec2.ts";
 import {deg90odd, wrap} from "@cl/math/math.ts";
 import {overlap_raabb_raabb2, point_inside_aabb, point_inside_circle, point_inside_raabb} from "@cl/collision/collision2.ts";
 import {box_brick, box_clone, box_end_zone, box_ground, box_mover, BOX_PRESET, box_spikes, box_start_zone, box_t, BOX_TYPE, GEOMETRY_TYPE, level_add_box, level_deserialize, level_new, level_serialize, level_t, OPT_BORDER, OPT_MASK, OPT_TEXTURE} from "./world.ts";
@@ -10,9 +10,10 @@ import {vec4, vec4_t} from "@cl/math/vec4.ts";
 import {line_rdata_instance, line_rend_render, line_rdata_new, line_rdata_build, line_rend_init, line_rend_build, LINE_CAP_TYPE, LINE_JOIN_TYPE} from "@engine/line_rend.ts";
 import {obb_rdata_instance, obb_rend_render, obb_rdata_build, obb_rend_init, obb_rend_build, obb_rdata_new} from "@engine/obb_rend.ts";
 import {grid_rdata_new, grid_rend_init, grid_rend_render} from "@engine/grid_rend.ts";
-import {rgb} from "@cl/math/vec3.ts";
+import {rgb} from "@cl/math/vec3_color.ts";
 import {store_add_level, store_get_level, store_get_levels, store_set_level} from "./storage.ts";
 import {BOX_LIMIT} from "./config.ts";
+import {vec2m_clamp, vec2m_snap, vec2m_swap} from "@cl/math/vec2_other.ts";
 
 export class editor_t {
     grid_size: vec2_t;
@@ -141,8 +142,8 @@ export function editor_rend_init() {
 }
 
 export function editor_compute_select(editor: editor_t): void {
-    vec2_copy(editor.select_pos, vec2_lerp1(editor.select_start, editor.select_end, 0.5));
-    vec2_copy(editor.select_size, vec2_abs(vec2_sub1(editor.select_end, editor.select_start)));
+    vec2_copy(editor.select_pos, vec2n_lerp(editor.select_start, editor.select_end, 0.5));
+    vec2_copy(editor.select_size, vec2n_abs(vec2n_sub(editor.select_end, editor.select_start)));
 }
 
 export function editor_find_top_box(editor: editor_t, point: vec2_t): box_t|null {
@@ -305,8 +306,8 @@ export function editor_m_button_down(event: m_event_t, editor: editor_t, width: 
             const transform = box.transform;
             const geometry = box.geometry;
 
-            box.drag_position = vec2_clone(transform.position);
-            box.drag_size = vec2_clone(geometry.size);
+            box.drag_position = vec2n_copy(transform.position);
+            box.drag_size = vec2n_copy(geometry.size);
         }
     }
 
@@ -338,7 +339,7 @@ export function editor_m_move(event: m_event_t, editor: editor_t, width: number,
     // process drag
     if (event.button === 0 && editor.drag_flag) {
         const diff = vec2((point[0] - editor.drag_pos[0]) * editor.drag_dir[0], (point[1] - editor.drag_pos[1]) * editor.drag_dir[1]);
-        const diff_abs = vec2_mul1(diff, editor.drag_dir);
+        const diff_abs = vec2n_mul(diff, editor.drag_dir);
 
         for (const box of editor.select_boxes) {
             const transform = box.transform;
@@ -347,37 +348,37 @@ export function editor_m_move(event: m_event_t, editor: editor_t, width: number,
             if (editor.drag_point_flag) {
                 if (event.shift) {
                     if (deg90odd(transform.rotation)) {
-                        vec2_swap(diff);
+                        vec2m_swap(diff);
                     }
 
-                    vec2_copy(geometry.size, vec2_add1(box.drag_size, vec2_muls1(diff, 2.0)));
-                    vec2_snap(geometry.size, vec2_muls1(editor.grid_size, 2.0), geometry.size);
-                    vec2_clamp2(geometry.size, vec2(1.0), vec2(1000.0));
+                    vec2_copy(geometry.size, vec2n_add(box.drag_size, vec2n_muls(diff, 2.0)));
+                    vec2m_snap(geometry.size, vec2n_muls(editor.grid_size, 2.0));
+                    vec2m_clamp(geometry.size, vec2(1.0), vec2(1000.0));
                 } else {
                     if (deg90odd(transform.rotation)) {
-                        vec2_swap(diff);
+                        vec2m_swap(diff);
                     }
 
-                    vec2_copy(geometry.size, vec2_add1(box.drag_size, diff));
-                    vec2_snap(geometry.size, editor.grid_size, geometry.size);
-                    vec2_clamp2(geometry.size, vec2(1.0), vec2(1000.0));
+                    vec2_copy(geometry.size, vec2n_add(box.drag_size, diff));
+                    vec2m_snap(geometry.size, editor.grid_size);
+                    vec2m_clamp(geometry.size, vec2(1.0), vec2(1000.0));
 
-                    const test = vec2_sub1(geometry.size, box.drag_size);
+                    const test = vec2n_sub(geometry.size, box.drag_size);
 
                     if (deg90odd(transform.rotation)) {
-                        vec2_swap(test);
+                        vec2m_swap(test);
                     }
 
-                    const diff_size = vec2_mul2(test, editor.drag_dir);
+                    const diff_size = vec2n_mul(test, editor.drag_dir);
 
-                    vec2_copy(transform.position, vec2_add1(box.drag_position, vec2_divs1(diff_size, 2.0)));
+                    vec2_copy(transform.position, vec2n_add(box.drag_position, vec2n_divs(diff_size, 2.0)));
                 }
             } else if (editor.drag_arrow_flag) {
-                vec2_copy(transform.position, vec2_add1(box.drag_position, diff_abs));
-                vec2_snap(transform.position, editor.grid_size, transform.position);
+                vec2_copy(transform.position, vec2n_add(box.drag_position, diff_abs));
+                vec2m_snap(transform.position, editor.grid_size);
             } else if (editor.drag_box_flag) {
-                vec2_copy(transform.position, vec2_add1(box.drag_position, diff));
-                vec2_snap(transform.position, editor.grid_size, transform.position);
+                vec2_copy(transform.position, vec2n_add(box.drag_position, diff));
+                vec2m_snap(transform.position, editor.grid_size);
             }
 
             editor_compute_bound(editor);
@@ -499,7 +500,7 @@ export function editor_camera_controls(editor: editor_t): void {
         camera.scale = clamp(camera.scale + camera.zoom_speed, 20.0, 100.0);
     }
 
-    camera.position = vec2_lerp1(camera.position, editor.target, 0.05);
+    camera.position = vec2n_lerp(camera.position, editor.target, 0.05);
 }
 
 export function editor_rend_grid(editor: editor_t): void {

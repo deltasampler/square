@@ -1,6 +1,7 @@
-import {vec2, vec2_clone, vec2_copy, vec2_t} from "@cl/math/vec2.ts";
-import {rgb, vec3, vec3_clone, vec3_t} from "@cl/math/vec3.ts";
-import {vec4, vec4_clone, vec4_set, vec4_t} from "@cl/math/vec4.ts";
+import {vec2, vec2n_copy, vec2_copy, vec2_t} from "@cl/math/vec2.ts";
+import {vec3, vec3n_copy, vec3_t} from "@cl/math/vec3.ts";
+import {rgb} from "@cl/math/vec3_color.ts";
+import {vec4, vec4n_copy, vec4_set, vec4_t} from "@cl/math/vec4.ts";
 
 // vector serialization
 export function vec_serialize(vec: Float32Array): number[] {
@@ -35,9 +36,9 @@ export function transform_new(): transform_t {
 
 export function transform_clone(transform: transform_t): transform_t {
     const out = new transform_t();
-    out.position = vec2_clone(transform.position);
+    out.position = vec2n_copy(transform.position);
     out.rotation = transform.rotation;
-    out.scaling = vec2_clone(transform.scaling);
+    out.scaling = vec2n_copy(transform.scaling);
 
     return out;
 }
@@ -83,7 +84,7 @@ export function geometry_new(): geometry_t {
 export function geometry_clone(geometry: geometry_t): geometry_t {
     const out = new geometry_t();
     out.type = geometry.type;
-    out.size = vec2_clone(geometry.size)
+    out.size = vec2n_copy(geometry.size)
     out.radius = geometry.radius;
 
     return out;
@@ -137,9 +138,9 @@ export function body_new(): body_t {
 export function body_clone(body: body_t): body_t {
     const out = new body_t();
     out.mass = body.mass;
-    out.force = vec2_clone(body.force);
-    out.acceleration = vec2_clone(body.acceleration);
-    out.velocity = vec2_clone(body.velocity);
+    out.force = vec2n_copy(body.force);
+    out.acceleration = vec2n_copy(body.acceleration);
+    out.velocity = vec2n_copy(body.velocity);
     out.damping = body.damping;
     out.friction = body.friction;
     out.restitution = body.restitution;
@@ -226,10 +227,10 @@ export function style_new(): style_t {
 export function style_clone(style: style_t): style_t {
     const out = new style_t();
     out.zindex = style.zindex;
-    out.inner_color = vec4_clone(style.inner_color);
-    out.outer_color = vec4_clone(style.outer_color);
-    out.option = vec4_clone(style.option);
-    out.params = vec3_clone(style.params);
+    out.inner_color = vec4n_copy(style.inner_color);
+    out.outer_color = vec4n_copy(style.outer_color);
+    out.option = vec4n_copy(style.option);
+    out.params = vec3n_copy(style.params);
 
     return out;
 }
@@ -277,8 +278,8 @@ export function animation_new(): animation_t {
 
 export function animation_clone(animation: animation_t): animation_t {
     const out = new animation_t();
-    out.start = vec2_clone(animation.start);
-    out.end = vec2_clone(animation.end);
+    out.start = vec2n_copy(animation.start);
+    out.end = vec2n_copy(animation.end);
     out.force = animation.force;
     out.dir = animation.dir;
     out.looping_flag = animation.looping_flag;
@@ -288,8 +289,8 @@ export function animation_clone(animation: animation_t): animation_t {
 
 export function animation_from(start: vec2_t, end: vec2_t, force: number, dir: number, looping_flag: boolean): animation_t {
     const out = new animation_t();
-    out.start = vec2_clone(start);
-    out.end = vec2_clone(end);
+    out.start = vec2n_copy(start);
+    out.end = vec2n_copy(end);
     out.force = force;
     out.dir = dir;
     out.looping_flag = looping_flag;
@@ -364,8 +365,8 @@ export function box_clone(box: box_t): box_t {
     out.animation = box.animation ? animation_clone(box.animation) : null;
     out.platform_flag = box.platform_flag;
     out.death_flag = box.death_flag;
-    out.drag_position = vec2_clone(box.drag_position);
-    out.drag_size = vec2_clone(box.drag_size);
+    out.drag_position = vec2n_copy(box.drag_position);
+    out.drag_size = vec2n_copy(box.drag_size);
 
     return out;
 }
@@ -590,8 +591,8 @@ export function level_clone(level: level_t): level_t {
     out.boxes = level.boxes.map(box => box_clone(box));
     out.start_zone = out.boxes.find(b => b.type === BOX_TYPE.START_ZONE)!;
     out.end_zone = out.boxes.find(b => b.type === BOX_TYPE.END_ZONE)!;
-    out.bg_lower_color = vec3_clone(level.bg_lower_color);
-    out.bg_upper_color = vec3_clone(level.bg_upper_color);
+    out.bg_lower_color = vec3n_copy(level.bg_lower_color);
+    out.bg_upper_color = vec3n_copy(level.bg_upper_color);
 
     return out;
 }

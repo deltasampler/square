@@ -1,8 +1,9 @@
-import {vec2, vec2_add2, vec2_addmuls2, vec2_clamp2, vec2_copy, vec2_dir1, vec2_dot, vec2_muls1, vec2_muls2, vec2_sub1, vec2_zero} from "@cl/math/vec2.ts";
+import {vec2, vec2_copy, vec2_dot, vec2_zero, vec2m_add, vec2m_addmuls, vec2m_muls, vec2n_dir, vec2n_muls, vec2n_sub} from "@cl/math/vec2.ts";
 import {deg90odd, pow} from "@cl/math/math.ts";
 import {mtv_raabb_raabb2, overlap_raabb_raabb2_x} from "@cl/collision/collision2.ts";
 import {box_t, body_t, player_t, transform_t, projectile_t} from "./world.ts";
 import {VEL_LIMIT} from "./config.ts";
+import { vec2m_clamp } from "@cl/math/vec2_other.ts";
 
 export function box_left(box: box_t): number {
     const index = deg90odd(box.transform.rotation) ? 1 : 0;
@@ -96,13 +97,13 @@ export function categorize_boxes(phys: phys_t, boxes: box_t[]) {
 }
 
 export function body_integrate(tranform: transform_t, body: body_t, step: number): void {
-    vec2_addmuls2(tranform.position, body.velocity, step);
+    vec2m_addmuls(tranform.position, body.velocity, step);
 
-    vec2_copy(body.acceleration, vec2_muls1(body.force, 1.0 / body.mass));
+    vec2_copy(body.acceleration, vec2n_muls(body.force, 1.0 / body.mass));
 
-    vec2_addmuls2(body.velocity, body.acceleration, step);
+    vec2m_addmuls(body.velocity, body.acceleration, step);
 
-    vec2_muls2(body.velocity, pow(body.damping, step));
+    vec2m_muls(body.velocity, pow(body.damping, step));
 
     vec2_zero(body.force);
 }
@@ -133,10 +134,10 @@ export function phys_player_collision(phys: phys_t, player: player_t, box: box_t
         }
 
         // resolve interpenetration
-        vec2_addmuls2(player_transform.position, result.dir, result.depth);
+        vec2m_addmuls(player_transform.position, result.dir, result.depth);
 
         // resolve velocity
-        const relative_velocity = vec2_sub1(player_body.velocity, box_body.velocity);
+        const relative_velocity = vec2n_sub(player_body.velocity, box_body.velocity);
         const normal_velocity = vec2_dot(relative_velocity, result.dir);
         const tangent = vec2(-result.dir[1], result.dir[0]);
         const tangential_velocity = vec2_dot(relative_velocity, tangent);
@@ -148,20 +149,20 @@ export function phys_player_collision(phys: phys_t, player: player_t, box: box_t
             // normal impulse
             const restitution = Math.min(player_body.restitution, box_body.restitution);
             const normal_impluse_mag = -(1.0 + restitution) * normal_velocity / (inv_mass0 + inv_mass1);
-            const normal_impulse = vec2_muls1(result.dir, normal_impluse_mag * inv_mass0);
-            vec2_add2(player_body.velocity, normal_impulse);
+            const normal_impulse = vec2n_muls(result.dir, normal_impluse_mag * inv_mass0);
+            vec2m_add(player_body.velocity, normal_impulse);
 
             // friction impulse
             const friction = Math.sqrt(player_body.friction * box_body.friction) * Math.abs(normal_impluse_mag);
             let friction_impulse_mag = -tangential_velocity / (inv_mass0 + inv_mass1);
             friction_impulse_mag = Math.max(-friction, Math.min(friction_impulse_mag, friction));
-            const friction_impulse = vec2_muls1(tangent, friction_impulse_mag * inv_mass0 * 2.0); // multiply by 2.0 when applying to 1 body
+            const friction_impulse = vec2n_muls(tangent, friction_impulse_mag * inv_mass0 * 2.0); // multiply by 2.0 when applying to 1 body
 
-            vec2_add2(player_body.velocity, friction_impulse);
+            vec2m_add(player_body.velocity, friction_impulse);
         }
 
         // clamp velocity
-        vec2_clamp2(player_body.velocity, vec2(-VEL_LIMIT), vec2(VEL_LIMIT));
+        vec2m_clamp(player_body.velocity, vec2(-VEL_LIMIT), vec2(VEL_LIMIT));
     }
 
     return true;
@@ -186,10 +187,10 @@ export function phys_projectile_collision(phys: phys_t, projectile: projectile_t
 
     if (box_body.collision_flag) {
         // resolve interpenetration
-        vec2_addmuls2(player_transform.position, result.dir, result.depth);
+        vec2m_addmuls(player_transform.position, result.dir, result.depth);
 
         // resolve velocity
-        const relative_velocity = vec2_sub1(player_body.velocity, box_body.velocity);
+        const relative_velocity = vec2n_sub(player_body.velocity, box_body.velocity);
         const normal_velocity = vec2_dot(relative_velocity, result.dir);
         const tangent = vec2(-result.dir[1], result.dir[0]);
         const tangential_velocity = vec2_dot(relative_velocity, tangent);
@@ -202,20 +203,20 @@ export function phys_projectile_collision(phys: phys_t, projectile: projectile_t
             const restitution = 1.0;
             // const restitution = Math.min(player_body.restitution, box_body.restitution);
             const normal_impluse_mag = -(1.0 + restitution) * normal_velocity / (inv_mass0 + inv_mass1);
-            const normal_impulse = vec2_muls1(result.dir, normal_impluse_mag * inv_mass0);
-            vec2_add2(player_body.velocity, normal_impulse);
+            const normal_impulse = vec2n_muls(result.dir, normal_impluse_mag * inv_mass0);
+            vec2m_add(player_body.velocity, normal_impulse);
 
             // friction impulse
             const friction = Math.sqrt(player_body.friction * box_body.friction) * Math.abs(normal_impluse_mag);
             let friction_impulse_mag = -tangential_velocity / (inv_mass0 + inv_mass1);
             friction_impulse_mag = Math.max(-friction, Math.min(friction_impulse_mag, friction));
-            const friction_impulse = vec2_muls1(tangent, friction_impulse_mag * inv_mass0 * 2.0); // multiply by 2.0 when applying to 1 body
+            const friction_impulse = vec2n_muls(tangent, friction_impulse_mag * inv_mass0 * 2.0); // multiply by 2.0 when applying to 1 body
 
-            vec2_add2(player_body.velocity, friction_impulse);
+            vec2m_add(player_body.velocity, friction_impulse);
         }
 
         // clamp velocity
-        vec2_clamp2(player_body.velocity, vec2(-VEL_LIMIT), vec2(VEL_LIMIT));
+        vec2m_clamp(player_body.velocity, vec2(-VEL_LIMIT), vec2(VEL_LIMIT));
     }
 
     return true;
@@ -228,10 +229,10 @@ export function update_physics(phys: phys_t, player: player_t, delta_time: numbe
         const body = box.body;
         const animation = box.animation!;
 
-        const move_direction = vec2_dir1(animation.end, animation.start);
-        const to_current = vec2_sub1(transform.position, animation.start);
+        const move_direction = vec2n_dir(animation.end, animation.start);
+        const to_current = vec2n_sub(transform.position, animation.start);
         const progress = vec2_dot(to_current, move_direction);
-        const total_distance = vec2_dot(vec2_sub1(animation.end, animation.start), move_direction);
+        const total_distance = vec2_dot(vec2n_sub(animation.end, animation.start), move_direction);
 
         if (progress > total_distance) {
             animation.dir = -1.0;
@@ -241,7 +242,7 @@ export function update_physics(phys: phys_t, player: player_t, delta_time: numbe
             // vec2_refl(body.velocity, vec2_neg(vec2_clone(move_direction)), body.velocity);
         }
 
-        vec2_add2(body.force, vec2_muls2(move_direction, animation.force * animation.dir));
+        vec2m_add(body.force, vec2n_muls(move_direction, animation.force * animation.dir));
     }
 
     // player forces
@@ -250,7 +251,7 @@ export function update_physics(phys: phys_t, player: player_t, delta_time: numbe
     const player_body = player.body;
 
     // apply gravity force to player
-    vec2_add2(player_body.force, vec2(0.0, -2000.0));
+    vec2m_add(player_body.force, vec2(0.0, -2000.0));
 
     phys.touching_curr = [];
 
