@@ -650,6 +650,9 @@ export function editor_load_level_ch(editor: editor_t, level_ch: collapsing_head
 export function editor_gui_window(editor: editor_t, window: window_t): void {
     const level = editor.level;
 
+    const info_ch = gui_collapsing_header(window, "Info", false);
+    gui_text(info_ch, "Press '`' (backquote) to enter/exit editor")
+
     const editor_ch = gui_collapsing_header(window, "Editor", false);
 
     const levels = store_get_levels();
