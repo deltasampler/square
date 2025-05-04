@@ -499,37 +499,6 @@ export function box_end_zone(position: vec2_t, size: vec2_t): box_t {
     return box;
 }
 
-// projectile
-export class projectile_t {
-    transform: transform_t;
-    geometry: geometry_t;
-    body: body_t;
-    style: style_t;
-    death_flag: boolean;
-};
-
-export function projectile_new(): projectile_t {
-    const out = new projectile_t();
-    out.transform = transform_new();
-    out.geometry = geometry_new();
-    out.body = body_new();
-    out.style = style_new();
-    out.death_flag = false;
-
-    return out;
-}
-
-export function projectile_clone(projectile: projectile_t): projectile_t {
-    const out = new projectile_t();
-    out.transform = transform_clone(projectile.transform);
-    out.geometry = geometry_clone(projectile.geometry);
-    out.body = body_clone(projectile.body);
-    out.style = style_clone(projectile.style);
-    out.death_flag = projectile.death_flag;
-
-    return out;
-}
-
 // player
 export class player_t {
     transform: transform_t;
